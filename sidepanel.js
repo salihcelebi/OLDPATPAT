@@ -89,6 +89,7 @@
         cmdPerf: byId('cmdPerf'),
         cmdSecurity: byId('cmdSecurity'),
         cmdManifest: byId('cmdManifest'),
+        cmdExplain: byId('cmdExplain'),
 
         aiPrompt: byId('aiPrompt'),
         btnAiAnalyze: byId('btnAiAnalyze'),
@@ -107,6 +108,7 @@
 
         // Çalışma alanı (dosyalar sekmesi)
         fileFilter: byId('fileFilter'),
+        fileQuickFilter: byId('fileQuickFilter'),
         fileList: byId('fileList'),
         activeFileName: byId('activeFileName'),
         activeFileBadge: byId('activeFileBadge'),
@@ -119,6 +121,7 @@
         btnReplace: byId('btnReplace'),
         btnFormat: byId('btnFormat'),
         btnJsonValidate: byId('btnJsonValidate'),
+        btnCopySelection: byId('btnCopySelection'),
         editorHint: byId('editorHint'),
 
         toast: byId('toast'),
@@ -186,9 +189,10 @@
       this.els.cmdPerf.disabled = !enabled;
       this.els.cmdSecurity.disabled = !enabled;
       this.els.cmdManifest.disabled = !enabled;
+      this.els.cmdExplain.disabled = !enabled;
 
       this.els.modelHint.textContent = enabled
-        ? `Seçili model: ${this.state.aiModel}`
+        ? `Seçili model: ${this.state.aiModel} • Bu modelle devam etmek istiyor musun?`
         : 'Model seçince AI butonları açılır.';
 
       // Dosyalar sekmesi: kod bağlamı butonları
@@ -288,9 +292,11 @@
     },
 
     setModel(modelId) {
+      const isFirstSelection = !this.state.aiModel && Boolean(modelId);
       this.state.aiModel = modelId || '';
       this.renderAi();
       Storage.setSync('puter_model_id', this.state.aiModel).catch(() => {});
+      if (isFirstSelection) this.toast(`Seçili model: ${this.state.aiModel}. Bu modelle devam etmek istiyor musun?`);
       this.log('Bilgi', this.state.aiModel ? `Model seçildi: ${this.state.aiModel}` : 'Model seçimi kaldırıldı.');
     },
 
@@ -405,10 +411,17 @@
     renderFileList() {
       const wrap = UI.els.fileList;
       const q = (UI.els.fileFilter?.value || '').trim().toLowerCase();
+      const quick = UI.els.fileQuickFilter?.value || 'all';
       const items = UI.state.workspace.order
         .filter((p) => !q || p.toLowerCase().includes(q))
         .map((p) => UI.state.workspace.files[p])
-        .filter(Boolean);
+        .filter(Boolean)
+        .filter((f) => {
+          if (quick === 'dirty') return Boolean(f.dirty);
+          if (quick === 'error') return Boolean(f.error);
+          if (quick === 'suggestion') return Boolean(f.hasSuggestion);
+          return true;
+        });
 
       if (!UI.state.workspace.ready || items.length === 0) {
         wrap.innerHTML = '<div class="empty">Henüz çalışma alanı yok. “İçe Aktar (ZIP)” ile başlayabilirsin.</div>';
@@ -420,6 +433,7 @@
         const badges = [];
         if (f.dirty) badges.push('<span class="badge dirty">Değişti</span>');
         if (f.error) badges.push('<span class="badge err">Hata</span>');
+        if (f.hasSuggestion) badges.push('<span class="badge">Öneri var</span>');
         return `
           <div class="fileitem ${escapeHtml(active) === escapeHtml(f.path) ? 'active' : ''}" data-path="${escapeAttr(f.path)}">
             <span style="min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.path)}</span>
@@ -445,6 +459,10 @@
         UI.els.activeFileBadge.hidden = false;
         UI.els.activeFileBadge.className = 'badge err';
         UI.els.activeFileBadge.textContent = 'Hata';
+      } else if (f.hasSuggestion) {
+        UI.els.activeFileBadge.hidden = false;
+        UI.els.activeFileBadge.className = 'badge';
+        UI.els.activeFileBadge.textContent = 'Öneri var';
       }
 
       UI.els.codeEditor.value = f.content || '';
@@ -611,6 +629,10 @@
         UI.els.activeFileBadge.hidden = false;
         UI.els.activeFileBadge.className = 'badge err';
         UI.els.activeFileBadge.textContent = 'Hata';
+      } else if (f.hasSuggestion) {
+        UI.els.activeFileBadge.hidden = false;
+        UI.els.activeFileBadge.className = 'badge';
+        UI.els.activeFileBadge.textContent = 'Öneri var';
       }
     },
 
@@ -758,6 +780,8 @@
           '- Sekme bazlı ana CTA butonlarını daha belirgin yap.\n' +
           '- Kritik aksiyonlarda mutlaka onay penceresi kullan.';
       UI.state.lastAiSuggestion = simulated;
+      const activePath = UI.state.workspace.activePath;
+      if (activePath && UI.state.workspace.files[activePath]) UI.state.workspace.files[activePath].hasSuggestion = true;
       UI.els.aiResultHint.textContent = simulated;
       UI.renderAi();
       UI.toast('Puter AI hazır değil. Simülasyon önerisi gösterildi.');
@@ -779,6 +803,8 @@
       // Puter yanıt formatı değişebilir; güvenli okuma
       const text = resp?.message?.content || resp?.content || resp?.text || JSON.stringify(resp);
       UI.state.lastAiSuggestion = String(text);
+      const activePath = UI.state.workspace.activePath;
+      if (activePath && UI.state.workspace.files[activePath]) UI.state.workspace.files[activePath].hasSuggestion = true;
       UI.els.aiResultHint.textContent = UI.state.lastAiSuggestion;
       UI.renderAi();
       UI.toast('AI önerisi hazır.');
@@ -961,6 +987,7 @@
     UI.els.cmdPerf.addEventListener('click', () => safeTry('AI: Hızlandır', () => runAiJob('Performansı iyileştir')));
     UI.els.cmdSecurity.addEventListener('click', () => safeTry('AI: Güvenlik', () => runAiJob('Güvenlik kontrolü')));
     UI.els.cmdManifest.addEventListener('click', () => safeTry('AI: Manifest', () => runAiJob('manifest.json doğrula')));
+    UI.els.cmdExplain.addEventListener('click', () => safeTry('AI: Kod Açıklaması', () => runAiJob('Kod açıklaması çıkar')));
 
     UI.els.btnAiAnalyze.addEventListener('click', () => safeTry('AI Analiz', () => runAiJob('Analiz ve öneri')));
     UI.els.btnAiCopy.addEventListener('click', () => safeTry('AI Öneri Kopyala', async () => {
@@ -1001,6 +1028,7 @@
       const current = UI.els.codeEditor.value || '';
       const next = applyUnifiedDiff(current, diff);
       Workspace.setContent(path, next);
+      if (UI.state.workspace.files[path]) UI.state.workspace.files[path].hasSuggestion = false;
       UI.els.codeEditor.value = next;
       UI.toast('Patch uygulandı (kaydetmeyi unutma).');
       UI.log('Bilgi', `Patch uygulandı: ${path}`);
@@ -1009,6 +1037,7 @@
 
     // Çalışma alanı: dosya filtreleme
     UI.els.fileFilter.addEventListener('input', () => safeTry('Dosya filtre', () => Workspace.renderFileList()));
+    UI.els.fileQuickFilter.addEventListener('change', () => safeTry('Hızlı filtre', () => Workspace.renderFileList()));
 
     // Çalışma alanı: dosya seçimi (delegation)
     UI.els.fileList.addEventListener('click', (e) => safeTry('Dosya seçimi', () => {
@@ -1077,8 +1106,17 @@
       const text = UI.els.codeEditor.value || '';
       const next = text.split(q).join(r);
       Workspace.setContent(path, next);
+      if (UI.state.workspace.files[path]) UI.state.workspace.files[path].hasSuggestion = false;
       UI.els.codeEditor.value = next;
       UI.toast('Değiştirildi (kaydetmeyi unutma).');
+    }));
+
+
+    UI.els.btnCopySelection.addEventListener('click', () => safeTry('Seçimi kopyala', async () => {
+      const selected = getEditorSelectionText();
+      if (!selected) return UI.toast('Önce editörden bir seçim yapmalısın.');
+      await navigator.clipboard.writeText(selected);
+      UI.toast('Seçili satırlar kopyalandı.');
     }));
 
     // Biçimlendir / JSON doğrula
@@ -1103,8 +1141,14 @@
       if (UI.els.btnAiAnalyze.disabled) return;
       runAiJob('Analiz ve öneri');
     }));
-  }
 
+    window.addEventListener('beforeunload', (e) => {
+      if (UI.state.workspace.dirtyCount > 0) {
+        e.preventDefault();
+        e.returnValue = 'Kaydedilmemiş değişikliklerin var. Çıkmak istiyor musun?';
+      }
+    });
+  }
   // ───────────────────────────────────────────────────────────────
   // Bölüm 7: Başlatma (ilk yükleme, ayarları geri çağırma)
   // ───────────────────────────────────────────────────────────────

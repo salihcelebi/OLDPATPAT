@@ -819,6 +819,12 @@
                 <div class="filetree" aria-label="Dosya ağacı">
                   <div class="filetreehead">
                     <input id="fileFilter" type="text" placeholder="Dosya ara (ör. manifest)..." />
+                    <select id="fileQuickFilter" aria-label="Hızlı filtre">
+                      <option value="all">Tüm dosyalar</option>
+                      <option value="dirty">Değişen dosyalar</option>
+                      <option value="error">Hata olanlar</option>
+                      <option value="suggestion">AI önerisi olanlar</option>
+                    </select>
                   </div>
                   <div class="filelist" id="fileList">
                     <div class="empty">
@@ -849,6 +855,7 @@
                       <button class="btn" id="btnReplace" type="button">Değiştir</button>
                       <button class="btn" id="btnFormat" type="button">Biçimlendir</button>
                       <button class="btn" id="btnJsonValidate" type="button">JSON Doğrula</button>
+                      <button class="btn" id="btnCopySelection" type="button">Seçimi Kopyala</button>
                     </div>
                     <div class="edhint" id="editorHint">
                       Not: “manifest.json” için JSON doğrulama ve minimum izin uyarısı gösterilir.
@@ -929,6 +936,7 @@
             <button class="btn" id="cmdPerf" type="button">Hızlandır</button>
             <button class="btn" id="cmdSecurity" type="button">Güvenlik</button>
             <button class="btn" id="cmdManifest" type="button">Manifest Doğrula</button>
+            <button class="btn" id="cmdExplain" type="button">Kod Açıklaması Çıkar</button>
           </div>
           <div class="small" style="margin-top:10px;">
             İpucu: AI çıktısı “öneri”dir. Uygulama, her zaman onay ister.
