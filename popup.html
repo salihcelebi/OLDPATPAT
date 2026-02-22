@@ -2,159 +2,52 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Patpat Agent</title>
   <style>
     :root{
-      --bg:#0b1220;
-      --card:#111a2e;
-      --muted:#a7b0c0;
-      --text:#e8eefc;
-      --line:rgba(255,255,255,0.10);
-      --btn:#1f2a44;
-      --btn2:#223158;
-      --ok:#16a34a;
-      --warn:#f59e0b;
-      --bad:#ef4444;
+      --bg:#0b1020; --text:#e7ecff; --muted:#a9b4e6; --line:rgba(255,255,255,.12);
+      --brand:#6ea8ff; --brand2:#9b7bff; --shadow:0 8px 24px rgba(0,0,0,.35);
+      --r:16px; --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
     }
-    *{box-sizing:border-box}
-    html,body{margin:0; padding:0; background:var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial;}
-    .wrap{width:360px; padding:12px;}
-    .top{
-      display:flex; align-items:center; justify-content:space-between; gap:8px;
-      padding:10px 12px; border:1px solid var(--line); border-radius:14px; background:var(--card);
+    body{ margin:0; font-family:var(--sans); color:var(--text); background:var(--bg); }
+    .wrap{
+      width:320px; padding:14px;
+      background: radial-gradient(600px 260px at 10% 0%, rgba(110,168,255,.22), transparent 55%),
+                  radial-gradient(520px 260px at 90% 10%, rgba(155,123,255,.18), transparent 55%),
+                  var(--bg);
     }
-    .title{display:flex; flex-direction:column; gap:2px}
-    .title b{font-size:15px}
-    .title span{color:var(--muted); font-size:12px}
-    .kebab{border:1px solid var(--line); background:transparent; color:var(--text); border-radius:12px; padding:8px 10px; cursor:pointer}
-    .menu{
+    .top{ display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+    .logo{ width:34px; height:34px; border-radius:12px; background:linear-gradient(135deg,var(--brand),var(--brand2)); box-shadow:var(--shadow); }
+    h1{ margin:0; font-size:14px; line-height:1.1; }
+    .sub{ margin-top:4px; font-size:12px; color:var(--muted); line-height:1.35; }
+    .btn{
+      width:100%; height:42px; border-radius:14px; border:1px solid var(--line);
+      background:rgba(15,22,48,.65); color:var(--text); cursor:pointer; font-size:13px;
       margin-top:10px;
-      display:none;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:var(--card);
-      padding:10px;
-      gap:8px;
     }
-    .menu.open{display:grid; grid-template-columns:1fr 1fr; }
-    .menu button{
-      background:var(--btn);
-      color:var(--text);
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:10px;
-      cursor:pointer;
-    }
-    .menu button:hover{background:var(--btn2);}
-    .card{
-      margin-top:10px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:var(--card);
-      padding:12px;
-    }
-    .actions{display:grid; grid-template-columns:1fr; gap:8px;}
-    .primary{
-      background:#2563eb; border:none; color:white;
-      padding:11px 12px; border-radius:12px; cursor:pointer; font-weight:600;
-    }
-    .primary:disabled{opacity:.6; cursor:not-allowed}
-    .secondary{
-      background:var(--btn); border:1px solid var(--line); color:var(--text);
-      padding:11px 12px; border-radius:12px; cursor:pointer; font-weight:600;
-    }
-    .row{display:flex; justify-content:space-between; gap:10px; align-items:center;}
-    .pill{font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
-    .pill.ok{color:#bbf7d0; border-color:rgba(22,163,74,.5)}
-    .pill.bad{color:#fecaca; border-color:rgba(239,68,68,.5)}
-    .pill.warn{color:#fde68a; border-color:rgba(245,158,11,.5)}
-    .muted{color:var(--muted); font-size:12px}
-    .small{font-size:12px}
-    .modal{
-      position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:14px;
-    }
-    .modal.open{display:flex;}
-    .modalCard{
-      width:100%; max-width:520px; max-height:80vh;
-      overflow:auto;
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:16px;
-      padding:12px;
-    }
-    pre{
-      white-space:pre-wrap;
-      word-break:break-word;
-      background:rgba(255,255,255,0.04);
-      border:1px solid var(--line);
-      padding:10px;
-      border-radius:12px;
-      font-size:12px;
-      color:var(--text);
-    }
-    .xbtn{float:right; background:transparent; border:1px solid var(--line); color:var(--text); border-radius:10px; padding:6px 10px; cursor:pointer}
+    .btn.primary{ border-color: rgba(110,168,255,.40); background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(155,123,255,.16)); }
+    .hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.35; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <div class="title">
-        <b>Patpat Agent</b>
-        <span>Worker Tab + Webhook + Öğrenme</span>
-      </div>
-      <button id="kebabBtn" class="kebab" title="Menü">⋮</button>
-    </div>
-
-    <!-- Kebab menu: bağımsız tetikleyiciler (dropdown list değil) -->
-    <div id="kebabMenu" class="menu" aria-label="Kebab menu">
-      <button id="btnSettings">Ayarlar</button>
-      <button id="btnExport">Dışa Aktar</button>
-      <button id="btnCopy">Kopyala</button>
-      <button id="btnLogs">Loglar</button>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div class="small"><b>Durum</b></div>
-        <div id="statusPill" class="pill">Hazır</div>
-      </div>
-      <div class="muted" id="statusText" style="margin-top:6px;">Tarama başlatmak için aşağıdan seçim yap.</div>
-    </div>
-
-    <div class="card">
-      <div class="actions">
-        <button class="primary" id="btnScanHesap">Sipariş Takip Taraması (hesap.com.tr)</button>
-        <button class="primary" id="btnScanAnabayiniz">SMM Panel Taraması (anabayiniz.com)</button>
-        <button class="secondary" id="btnScanCompetitors">Rakip Analizi (ilanlar/*)</button>
-        <button class="secondary" id="btnOpenSidePanel">Onay Panelini Aç (Yöntem 3)</button>
-      </div>
-      <div class="muted" style="margin-top:10px;">
-        Not: Webhook URL'si <b>/exec</b> dahil tam olmalıdır (kilitli).
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Patpat Agent</h1>
+        <div class="sub">Popup yalnızca yan panel başlatıcısıdır.</div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <div class="small"><b>Son Sonuç</b></div>
-        <div class="pill" id="lastResultMeta">-</div>
-      </div>
-      <div class="muted" id="lastResultText" style="margin-top:6px;">Henüz tarama yok.</div>
+    <button class="btn primary" id="btnOpenPanel" type="button">Yan Paneli Aç</button>
+    <button class="btn" id="btnOpenOptions" type="button">Ayarları Aç</button>
+
+    <div class="hint" id="msg">
+      İpucu: Tüm işlemler yan panelde sekmeler altında yönetilir.
     </div>
   </div>
 
-  <div id="logsModal" class="modal" role="dialog" aria-modal="true" aria-label="Loglar">
-    <div class="modalCard">
-      <button id="closeLogs" class="xbtn">Kapat</button>
-      <h3 style="margin:6px 0 10px 0;">Loglar</h3>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
-        <button id="btnRefreshLogs" class="secondary" style="flex:1;">Yenile</button>
-        <button id="btnClearLogs" class="secondary" style="flex:1;">Temizle</button>
-      </div>
-      <pre id="logsPre">-</pre>
-    </div>
-  </div>
-
-<script src="popup.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>
