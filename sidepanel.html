@@ -621,6 +621,10 @@
         <input id="globalSearch" type="text" placeholder="Ara: SMM ID, Sipariş No, Müşteri, Platform, Satıcı..." />
       </div>
 
+      <button class="btn" id="btnClear" type="button" title="Tabloları ve geçici UI durumunu temizle">
+        🧹 Temizle
+      </button>
+
       <button class="btn danger" id="btnStop" type="button" title="Tüm işlemleri iptal et">
         ⛔ Durdur
       </button>
@@ -648,6 +652,7 @@
     <button class="tab" data-tab="rules" aria-selected="false" type="button">Kurallar ve Öğrenme Merkezi</button>
     <button class="tab" data-tab="reports" aria-selected="false" type="button">Raporlar ve Otomasyon</button>
     <button class="tab" data-tab="files" aria-selected="false" type="button">Chrome Eklenti Dosyaları</button>
+    <button class="tab" data-tab="system" aria-selected="false" type="button">Sistem ve Entegrasyon</button>
   </nav>
 
   <!-- Bölüm D: Ana Yerleşim -->
@@ -685,11 +690,44 @@
             </div>
 
             <div class="card">
+              <h3>Sipariş Filtreleri ve Derin Arama</h3>
+              <p>Platform, durum, müşteri ve SMM ID ile filtrele.</p>
+              <div class="row">
+                <select id="ordersPlatformFilter">
+                  <option value="">Platform (Tümü)</option>
+                  <option value="hesap">hesap</option>
+                  <option value="anabayiniz">anabayiniz</option>
+                </select>
+                <input id="ordersStatusFilter" type="text" placeholder="Durum (örn: pending)" />
+                <input id="ordersCustomerFilter" type="text" placeholder="Müşteri Adı" />
+                <input id="ordersSmmIdFilter" type="text" placeholder="SMM ID" />
+                <button class="btn" id="btnOrdersApplyFilter" type="button">Filtreyi Uygula</button>
+                <button class="btn" id="btnOrdersResetFilter" type="button">Filtreyi Sıfırla</button>
+              </div>
+              <div class="hint">Not: Arama kutusu ve filtreler birlikte çalışır.</div>
+            </div>
+
+            <div class="card">
               <h3>Sonuç Önizleme</h3>
-              <p>Henüz veri yok. Tarama başlatınca burada görünecek.</p>
+              <p>Tablo sütunları sabittir; satırlar canlı akar.</p>
+              <div id="ordersPreviewWrap"></div>
               <div class="empty" id="ordersEmpty">
                 Henüz sipariş verisi yok. “Hesap Taramayı Başlat” ile başlayabilirsin.
               </div>
+            </div>
+
+            <div class="card">
+              <h3>Dışa Aktarım ve Kopyalama</h3>
+              <p>Yalnız görünür/filtreli satırlar üzerinden dışa aktarım ve kopyalama yapar.</p>
+              <div class="row">
+                <button class="btn" id="btnOrdersCopyMd" type="button">Kopyala (MD)</button>
+                <button class="btn" id="btnOrdersExportJson" type="button">Export JSON</button>
+                <button class="btn" id="btnOrdersExportCsv" type="button">Export CSV</button>
+                <button class="btn" id="btnOrdersExportHtml" type="button">Export HTML</button>
+                <button class="btn" id="btnOrdersExportTxt" type="button">Export TXT</button>
+                <button class="btn" id="btnSheetsPush" type="button">Sheets Gönder</button>
+              </div>
+              <div class="hint">Kritik işlemlerde onay penceresi açılır.</div>
             </div>
           </div>
         </section>
@@ -701,19 +739,86 @@
               <h3>Rakip Taraması</h3>
               <p>Platform seç, sayfa sınırını belirle ve taramayı başlat.</p>
               <div class="row">
+                <select id="marketPlatformSelect">
+                  <option value="tiktok">tiktok</option>
+                  <option value="instagram" selected>instagram</option>
+                  <option value="youtube">youtube</option>
+                  <option value="twitter">twitter</option>
+                  <option value="twitch">twitch</option>
+                  <option value="threads">threads</option>
+                </select>
+                <input id="marketMaxPages" type="number" min="1" max="50" value="3" placeholder="Sayfa" />
                 <button class="btn primary" id="btnMarketStart" type="button">Taramayı Başlat</button>
                 <button class="btn" id="btnMarketOnePage" type="button">Tek Sayfa Tara</button>
                 <button class="btn" id="btnMarketRegexTest" type="button">Satıcı Regex Test</button>
-                <button class="btn" id="btnMarketExport" type="button">Dışa Aktar</button>
+                <button class="btn" id="btnMarketCopyMd" type="button">Kopyala (MD)</button>
               </div>
               <div class="hint">Fırsat etiketleri ve özetler, tarama bitince oluşur.</div>
             </div>
 
             <div class="card">
-              <h3>Boş Durum</h3>
-              <div class="empty">
+              <h3>Sonuç Önizleme</h3>
+              <div id="marketPreviewWrap"></div>
+              <div class="empty" id="marketEmpty">
                 Henüz rakip verisi yok. “Taramayı Başlat” ile başlayabilirsin.
               </div>
+            </div>
+
+            <div class="card">
+              <h3>Dışa Aktarım</h3>
+              <p>JSON, CSV, HTML ve TXT olarak indir.</p>
+              <div class="row">
+                <button class="btn" id="btnMarketExportJson" type="button">Export JSON</button>
+                <button class="btn" id="btnMarketExportCsv" type="button">Export CSV</button>
+                <button class="btn" id="btnMarketExportHtml" type="button">Export HTML</button>
+                <button class="btn" id="btnMarketExportTxt" type="button">Export TXT</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sekme: Sistem -->
+        <section class="tabpanel" data-tabpanel="system" hidden>
+          <div class="cards">
+            <div class="card">
+              <h3>Canlı Durum</h3>
+              <p>Bağlantı ve AI sağlık kontrolünün son zamanı burada görünür.</p>
+              <div class="row">
+                <span class="pill"><span class="dot" aria-hidden="true"></span><span id="systemOnlineLastCheck">Online kontrol: —</span></span>
+                <span class="pill"><span class="dot" aria-hidden="true"></span><span id="systemAiLastCheck">AI kontrol: —</span></span>
+                <button class="btn" id="btnSystemRefreshNow" type="button">Şimdi Yenile</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Entegrasyon Doğrulama</h3>
+              <p>Options kaynağındaki kilitli ayarlar salt-okunur gösterilir.</p>
+              <div class="row">
+                <input id="systemSheetId" type="text" placeholder="Sheets ID" readonly />
+                <input id="systemWebhookUrl" type="text" placeholder="Webhook URL" readonly />
+                <button class="btn" id="btnSystemValidateIntegrations" type="button">Doğrula</button>
+                <button class="btn" id="btnSystemTestPayload" type="button">Test Payload</button>
+              </div>
+              <div id="systemValidationList" class="hint">Henüz doğrulama yapılmadı.</div>
+            </div>
+
+            <div class="card">
+              <h3>İzin ve Güvenlik</h3>
+              <p>Manifest denetimi ve AI güvenlik ayarları.</p>
+              <div class="row">
+                <button class="btn" id="btnSystemManifestAudit" type="button">Manifest İzin Kontrol Et</button>
+              </div>
+              <div class="hint" id="systemSecuritySummary">PII maskeleme: — • Talimat koruması: —</div>
+            </div>
+
+            <div class="card">
+              <h3>Modlar ve Kurtarma</h3>
+              <p>Kullanım modlarını gör, kaldığın yerden devam et veya işi durdur.</p>
+              <div class="row">
+                <button class="btn" id="btnSystemResume" type="button">Yeniden Dene (Resume)</button>
+                <button class="btn danger" id="btnSystemStopAll" type="button">Tüm İşleri Durdur</button>
+              </div>
+              <div class="hint" id="systemModeSummary">Safe Mode: — • Debug: — • Dry Run: —</div>
             </div>
           </div>
         </section>
@@ -983,6 +1088,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://js.puter.com/v2/"></script>
   <script src="bundle.js"></script>
 </body>
 </html>
