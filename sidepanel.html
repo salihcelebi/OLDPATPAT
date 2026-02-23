@@ -621,6 +621,10 @@
         <input id="globalSearch" type="text" placeholder="Ara: SMM ID, Sipariş No, Müşteri, Platform, Satıcı..." />
       </div>
 
+      <button class="btn" id="btnClear" type="button" title="Tabloları ve geçici UI durumunu temizle">
+        🧹 Temizle
+      </button>
+
       <button class="btn danger" id="btnStop" type="button" title="Tüm işlemleri iptal et">
         ⛔ Durdur
       </button>
@@ -648,6 +652,7 @@
     <button class="tab" data-tab="rules" aria-selected="false" type="button">Kurallar ve Öğrenme Merkezi</button>
     <button class="tab" data-tab="reports" aria-selected="false" type="button">Raporlar ve Otomasyon</button>
     <button class="tab" data-tab="files" aria-selected="false" type="button">Chrome Eklenti Dosyaları</button>
+    <button class="tab" data-tab="system" aria-selected="false" type="button">Sistem ve Entegrasyon</button>
   </nav>
 
   <!-- Bölüm D: Ana Yerleşim -->
@@ -673,23 +678,48 @@
         <section class="tabpanel" data-tabpanel="orders">
           <div class="cards">
             <div class="card">
-              <h3>Hızlı İşlemler</h3>
-              <p>Hesap ve SMM panel taramalarını buradan başlatabilirsin.</p>
+              <h3>Hesap Sattığım İlanlar Taraması</h3>
+              <p>Sadece hesap.com.tr/p/sattigim-ilanlar ve durum sayfalarını tarar.</p>
               <div class="row">
-                <button class="btn primary" id="btnScanHesap" type="button">Hesap Taramayı Başlat</button>
-                <button class="btn primary" id="btnScanSmm" type="button">SMM Panel Taramayı Başlat</button>
-                <button class="btn" id="btnDryRun" type="button">Önizleme (Gönderme Yok)</button>
-                <button class="btn primary" id="btnSyncNow" type="button">Şimdi Senkronla</button>
+                <select id="selSiparisStatus">
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="pending">pending</option>
+                  <option value="processing">processing</option>
+                  <option value="completed">completed</option>
+                  <option value="cancelled">cancelled</option>
+                  <option value="returnprocess">returnprocess</option>
+                </select>
+                <input id="inpSiparisMaxPage" type="number" min="1" max="50" value="5" placeholder="Max sayfa" />
+                <button class="btn primary" id="btnSiparisStart" type="button">Taramayı Başlat</button>
+                <button class="btn" id="btnSiparisStop" type="button">Durdur</button>
+                <button class="btn" id="btnSiparisClear" type="button">Temizle</button>
+                <button class="btn" id="btnSiparisCopyMd" type="button">MD Kopyala</button>
+                <button class="btn" id="btnSiparisExportJson" type="button">JSON Export</button>
+                <button class="btn" id="btnSiparisExportCsv" type="button">CSV Export</button>
               </div>
-              <div class="hint">Not: Hata olursa sistem adım adım geri düşer.</div>
+              <div class="hint" id="siparisStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div>
             </div>
 
             <div class="card">
-              <h3>Sonuç Önizleme</h3>
-              <p>Henüz veri yok. Tarama başlatınca burada görünecek.</p>
-              <div class="empty" id="ordersEmpty">
-                Henüz sipariş verisi yok. “Hesap Taramayı Başlat” ile başlayabilirsin.
+              <h3>Canlı Sipariş Tablosu</h3>
+              <p>Satırlar gerçek sayfadan geldikçe tabloya eklenir.</p>
+              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
+                <table id="tblSiparis" style="width:100%; border-collapse:collapse; min-width:950px;">
+                  <thead>
+                    <tr>
+                      <th>İlan Başlığı</th>
+                      <th>Sipariş No</th>
+                      <th>SMM ID</th>
+                      <th>Tarih</th>
+                      <th>Durum</th>
+                      <th>Tutar (TL)</th>
+                      <th>Kullanıcı</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tblSiparisBody"></tbody>
+                </table>
               </div>
+              <div class="empty" id="ordersEmpty">Henüz sipariş verisi yok.</div>
             </div>
           </div>
         </section>
@@ -698,22 +728,114 @@
         <section class="tabpanel" data-tabpanel="market" hidden>
           <div class="cards">
             <div class="card">
-              <h3>Rakip Taraması</h3>
-              <p>Platform seç, sayfa sınırını belirle ve taramayı başlat.</p>
+              <h3>Rakip Tarama</h3>
+              <p>Platform, hizmet ve adet aralığı seçip gerçek sayfadan tarama başlat.</p>
               <div class="row">
-                <button class="btn primary" id="btnMarketStart" type="button">Taramayı Başlat</button>
-                <button class="btn" id="btnMarketOnePage" type="button">Tek Sayfa Tara</button>
-                <button class="btn" id="btnMarketRegexTest" type="button">Satıcı Regex Test</button>
-                <button class="btn" id="btnMarketExport" type="button">Dışa Aktar</button>
+                <select id="selPlatform">
+                  <option value="">Platform seç</option>
+                  <option value="tiktok">tiktok</option>
+                  <option value="instagram">instagram</option>
+                  <option value="youtube">youtube</option>
+                  <option value="twitter">twitter</option>
+                  <option value="twitch">twitch</option>
+                </select>
+                <select id="selService" disabled>
+                  <option value="">Önce platform seç</option>
+                </select>
+                <input id="inpQtyMin" type="number" min="0" step="1" placeholder="Min adet" value="1000" />
+                <input id="inpQtyMax" type="number" min="0" step="1" placeholder="Max adet" value="50000" />
+                <button class="btn primary" id="btnRakipStart" type="button">Taramayı Başlat</button>
+                <button class="btn" id="btnRakipStop" type="button">Durdur</button>
+                <button class="btn" id="btnRakipClear" type="button">Temizle</button>
               </div>
-              <div class="hint">Fırsat etiketleri ve özetler, tarama bitince oluşur.</div>
+              <div class="row">
+                <button class="btn" id="btnPickService" type="button">Hizmet için DOM Seç</button>
+                <button class="btn" id="btnPickShop" type="button">Mağaza için DOM Seç</button>
+                <button class="btn" id="btnPickWarranty" type="button">Garanti için DOM Seç</button>
+                <button class="btn" id="btnPickSuccess" type="button">Başarılı İşlem için DOM Seç</button>
+                <button class="btn" id="btnPickPrice" type="button">Fiyat için DOM Seç</button>
+                <button class="btn" id="btnPickAdPower" type="button">Reklam Gücü için DOM Seç</button>
+                <button class="btn" id="btnPickCancel" type="button">Pick İptal</button>
+              </div>
+              <div class="hint" id="rakipStats">Satır: 0 • Atılan (dedup): 0</div>
             </div>
 
             <div class="card">
-              <h3>Boş Durum</h3>
-              <div class="empty">
-                Henüz rakip verisi yok. “Taramayı Başlat” ile başlayabilirsin.
+              <h3>Canlı Rakip Tablosu</h3>
+              <p>Satırlar geldikçe tabloya eklenir.</p>
+              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
+                <table id="tblRakip" style="width:100%; border-collapse:collapse; min-width:900px;">
+                  <thead>
+                    <tr>
+                      <th>Platform</th>
+                      <th>İlan Başlığı</th>
+                      <th>Hizmet</th>
+                      <th>Mağaza Adı</th>
+                      <th>Garanti</th>
+                      <th>Fiyat</th>
+                      <th>Reklam Gücü</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tblRakipBody"></tbody>
+                </table>
               </div>
+              <div class="empty" id="marketEmpty">Henüz rakip verisi yok.</div>
+            </div>
+
+            <div class="card">
+              <h3>Kopyalama ve Export</h3>
+              <div class="row">
+                <button class="btn" id="btnRakipCopyMd" type="button">MD Kopyala</button>
+                <button class="btn" id="btnRakipExportJson" type="button">JSON Export</button>
+                <button class="btn" id="btnRakipExportCsv" type="button">CSV Export</button>
+                <button class="btn" id="btnRakipRegexPanel" type="button">Regex Oluştur</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Sekme: Sistem -->
+        <section class="tabpanel" data-tabpanel="system" hidden>
+          <div class="cards">
+            <div class="card">
+              <h3>Canlı Durum</h3>
+              <p>Bağlantı ve AI sağlık kontrolünün son zamanı burada görünür.</p>
+              <div class="row">
+                <span class="pill"><span class="dot" aria-hidden="true"></span><span id="systemOnlineLastCheck">Online kontrol: —</span></span>
+                <span class="pill"><span class="dot" aria-hidden="true"></span><span id="systemAiLastCheck">AI kontrol: —</span></span>
+                <button class="btn" id="btnSystemRefreshNow" type="button">Şimdi Yenile</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <h3>Entegrasyon Doğrulama</h3>
+              <p>Options kaynağındaki kilitli ayarlar salt-okunur gösterilir.</p>
+              <div class="row">
+                <input id="systemSheetId" type="text" placeholder="Sheets ID" readonly />
+                <input id="systemWebhookUrl" type="text" placeholder="Webhook URL" readonly />
+                <button class="btn" id="btnSystemValidateIntegrations" type="button">Doğrula</button>
+                <button class="btn" id="btnSystemTestPayload" type="button">Test Payload</button>
+              </div>
+              <div id="systemValidationList" class="hint">Henüz doğrulama yapılmadı.</div>
+            </div>
+
+            <div class="card">
+              <h3>İzin ve Güvenlik</h3>
+              <p>Manifest denetimi ve AI güvenlik ayarları.</p>
+              <div class="row">
+                <button class="btn" id="btnSystemManifestAudit" type="button">Manifest İzin Kontrol Et</button>
+              </div>
+              <div class="hint" id="systemSecuritySummary">PII maskeleme: — • Talimat koruması: —</div>
+            </div>
+
+            <div class="card">
+              <h3>Modlar ve Kurtarma</h3>
+              <p>Kullanım modlarını gör, kaldığın yerden devam et veya işi durdur.</p>
+              <div class="row">
+                <button class="btn" id="btnSystemResume" type="button">Yeniden Dene (Resume)</button>
+                <button class="btn danger" id="btnSystemStopAll" type="button">Tüm İşleri Durdur</button>
+              </div>
+              <div class="hint" id="systemModeSummary">Safe Mode: — • Debug: — • Dry Run: —</div>
             </div>
           </div>
         </section>
@@ -983,6 +1105,9 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="rakip.js"></script>
+  <script src="siparis.js"></script>
   <script src="bundle.js"></script>
 </body>
 </html>
