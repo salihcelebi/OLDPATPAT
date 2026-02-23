@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Patpat Ajan",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Dosya tabanlı tarama, senkron ve yan panel yönetimi.",
   "action": {
-    "default_title": "Patpat Agent"
+    "default_title": "patpat 3",
+    "default_popup": "popup.html"
   },
   "icons": {
     "16": "icons/16.png",
@@ -14,7 +15,9 @@
   },
   "host_permissions": [
     "https://hesap.com.tr/*",
+    "https://*.hesap.com.tr/*",
     "https://anabayiniz.com/*",
+    "https://*.anabayiniz.com/*",
     "https://script.google.com/*"
   ],
   "permissions": [
@@ -34,24 +37,31 @@
   "content_scripts": [
     {
       "matches": [
-        "https://hesap.com.tr/p/sattigim-ilanlar*",
-        "https://hesap.com.tr/ilanlar/*"
+        "https://*.hesap.com.tr/ilanlar/*",
+        "https://*.hesap.com.tr/p/sattigim-ilanlar*",
+        "https://hesap.com.tr/ilanlar/*",
+        "https://hesap.com.tr/p/sattigim-ilanlar*"
       ],
       "js": [
-        "content.js",
-        "content-crawler.js"
+        "content-crawler.js",
+        "content.js"
       ],
       "run_at": "document_idle"
     },
     {
       "matches": [
+        "https://*.anabayiniz.com/orders*",
         "https://anabayiniz.com/orders*"
       ],
       "js": [
-        "content.js",
-        "content-crawler.js"
+        "content-crawler.js",
+        "content.js"
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
 }

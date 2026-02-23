@@ -65,6 +65,17 @@
 
         globalSearch: byId('globalSearch'),
         btnStop: byId('btnStop'),
+        // Hızlı işlemler (Sipariş)
+        btnScanHesap: byId('btnScanHesap'),
+        btnScanSmm: byId('btnScanSmm'),
+        btnDryRun: byId('btnDryRun'),
+        btnSyncNow: byId('btnSyncNow'),
+
+        // Rakip/pazar
+        btnMarketStart: byId('btnMarketStart'),
+        btnMarketOnePage: byId('btnMarketOnePage'),
+        btnMarketRegexTest: byId('btnMarketRegexTest'),
+        btnMarketExport: byId('btnMarketExport'),
 
         progressLabel: byId('progressLabel'),
         jobLabel: byId('jobLabel'),
@@ -904,7 +915,30 @@
   // ───────────────────────────────────────────────────────────────
   // Bölüm 6: Event Bağlama (tüm handler’lar safeTry ile sarılı)
   // ───────────────────────────────────────────────────────────────
-  function bindEvents() {
+  async function sendBg(message) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (err) {
+      UI.log('Hata', `Background mesajı gönderilemedi (${message?.type || 'unknown'}): ${UI.formatErr(err)}`);
+      UI.toast('Arka plan ile iletişim kurulamadı.');
+      throw err;
+    }
+  }
+
+  async function updateActiveSite() {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+      const tab = tabs && tabs[0];
+      if (!tab || !tab.url) return;
+      const u = new URL(tab.url);
+      UI.setSite(u.hostname);
+      UI.renderTop();
+    } catch {
+      // sessiz
+    }
+  }
+
+function bindEvents() {
     // Sekmeler
     document.querySelectorAll('.tab').forEach((btn) => {
       btn.addEventListener('click', () => safeTry('Sekme değişimi', () => {
@@ -922,10 +956,11 @@
       UI.log('Bilgi', `Arama: "${q}"`);
     }));
 
-    // STOP (şimdilik sadece UI; background iptal mesajı sonra eklenecek)
-    UI.els.btnStop.addEventListener('click', () => safeTry('Durdur', () => {
+    // STOP (background'a da iptal gönder)
+    UI.els.btnStop.addEventListener('click', () => safeTry('Durdur', async () => {
       UI.setProgress({ jobName: 'İptal', progress: 0, step: 'İş iptal edildi', queue: UI.state.queue });
       UI.log('Uyarı', 'Kullanıcı işlemi durdurdu.');
+      await sendBg({ type: 'ui_stop' }).catch(() => {});
       UI.toast('Tüm işlemler durduruldu.');
     }));
 
@@ -934,6 +969,71 @@
       UI.toast('İpucu: Sekme seç, ana butonlarla işlemi başlat.');
       UI.log('Bilgi', 'Yardım gösterildi.');
     }));
+
+    // Sipariş: Tarama + Senkron
+    if (UI.els.btnScanHesap) UI.els.btnScanHesap.addEventListener('click', () => safeTry('Hesap tarama', async () => {
+      UI.log('Bilgi', 'Hesap taraması başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_hesap' });
+      UI.toast('Hesap taraması başlatıldı.');
+    }));
+
+    if (UI.els.btnScanSmm) UI.els.btnScanSmm.addEventListener('click', () => safeTry('SMM tarama', async () => {
+      UI.log('Bilgi', 'SMM panel taraması başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_smm' });
+      UI.toast('SMM taraması başlatıldı.');
+    }));
+
+    if (UI.els.btnDryRun) UI.els.btnDryRun.addEventListener('click', () => safeTry('Önizleme', async () => {
+      UI.log('Bilgi', 'Önizleme (dry-run) başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_hesap', options: { dryRun: true } });
+      UI.toast('Önizleme başlatıldı (gönderme yok).');
+    }));
+
+    if (UI.els.btnSyncNow) UI.els.btnSyncNow.addEventListener('click', () => safeTry('Senkron', async () => {
+      UI.log('Bilgi', 'Senkron başlatılıyor...');
+      await sendBg({ type: 'ui_sync_now' });
+      UI.toast('Senkron başlatıldı.');
+    }));
+
+    // Rakip/Pazar: Platform girişini üst arama kutusundan alıyoruz.
+    function getMarketPlatform() {
+      const q = (UI.els.globalSearch?.value || '').trim().toLowerCase();
+      return q || 'instagram';
+    }
+
+    if (UI.els.btnMarketStart) UI.els.btnMarketStart.addEventListener('click', () => safeTry('Rakip tarama', async () => {
+      const platform = getMarketPlatform();
+      UI.log('Bilgi', `Rakip taraması başlatılıyor: ${platform}`);
+      await sendBg({ type: 'ui_market_start', platform, maxPages: 3 });
+      UI.toast(`Rakip taraması başladı: ${platform}`);
+    }));
+
+    if (UI.els.btnMarketOnePage) UI.els.btnMarketOnePage.addEventListener('click', () => safeTry('Tek sayfa', async () => {
+      const platform = getMarketPlatform();
+      UI.log('Bilgi', `Tek sayfa tarama: ${platform}`);
+      await sendBg({ type: 'ui_market_start', platform, maxPages: 1 });
+      UI.toast(`Tek sayfa tarama başladı: ${platform}`);
+    }));
+
+    if (UI.els.btnMarketRegexTest) UI.els.btnMarketRegexTest.addEventListener('click', () => safeTry('Regex test', () => {
+      UI.toast('Regex test bu sürümde sadece taslak (henüz bağlı değil).');
+      UI.log('Uyarı', 'Satıcı Regex Test: henüz bağlanmadı.');
+    }));
+
+    if (UI.els.btnMarketExport) UI.els.btnMarketExport.addEventListener('click', () => safeTry('Dışa aktar', () => {
+      UI.toast('Dışa aktarım bu sürümde sadece taslak (henüz bağlı değil).');
+      UI.log('Uyarı', 'Dışa Aktar: henüz bağlanmadı.');
+    }));
+
+    // Aktif sekmeye göre "Site" pill'ini güncel tut
+    safeTry('Site güncelle', () => {
+      updateActiveSite();
+      chrome.tabs.onActivated.addListener(() => updateActiveSite());
+      chrome.tabs.onUpdated.addListener((_tabId, info) => {
+        if (info && info.status === 'complete') updateActiveSite();
+      });
+    });
+
 
     // Loglar
     UI.els.btnClearLogs.addEventListener('click', () => safeTry('Log temizle', () => {

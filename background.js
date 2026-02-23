@@ -47,6 +47,26 @@ const STORAGE_KEYS = Object.freeze({
 // ──────────────────────────────────────────────────────────────
 const ports = new Set();
 
+// Content script hazır el sıkışması (tab bazlı)
+const CONTENT_READY = new Map(); // tabId -> ts
+const CONTENT_READY_WAITERS = new Map(); // tabId -> {resolve,reject}
+
+function waitForContentReady(tabId, timeoutMs = 15000) {
+  if (CONTENT_READY.has(tabId)) return Promise.resolve(true);
+
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      CONTENT_READY_WAITERS.delete(tabId);
+      reject(new Error("Content script hazır sinyali beklenirken zaman aşımı."));
+    }, timeoutMs);
+
+    CONTENT_READY_WAITERS.set(tabId, {
+      resolve: () => { clearTimeout(t); CONTENT_READY_WAITERS.delete(tabId); resolve(true); },
+      reject: (e) => { clearTimeout(t); CONTENT_READY_WAITERS.delete(tabId); reject(e); }
+    });
+  });
+}
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port?.name !== "patpat_sidepanel") return;
 
@@ -58,11 +78,8 @@ chrome.runtime.onConnect.addListener((port) => {
     safeLog("Uyarı", "Yan panel bağlantısı kapandı.");
   });
 
-  // İlk “durum” paketi
-  broadcastStatus({
-    online: "bilinmiyor",
-    site: "—"
-  });
+  // İlk “durum” paketi (online bilgisini yan panel kendi hesaplıyor; burada override etmiyoruz)
+  broadcastStatus({ site: "—" });
 });
 
 function broadcast(type, payload) {
@@ -84,7 +101,11 @@ function broadcastProgress({ jobName, progress, step, queue }) {
 }
 
 function broadcastStatus({ online, site }) {
-  broadcast("status", { online, site });
+  const payload = {};
+  // "online"/"offline" dışında gelen değerler (ör. "bilinmiyor") UI'ı bozmasın.
+  if (online === "online" || online === "offline") payload.online = online;
+  if (typeof site === "string") payload.site = site;
+  broadcast("status", payload);
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -162,6 +183,42 @@ function isCancelled(jobId) {
 // Bölüm: Mesajlaşma (UI -> Background) ve (Content -> Background)
 // ──────────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+
+// Content script hazır sinyali (content.js)
+if (msg?.type === "content_ready") {
+  const tabId = sender?.tab?.id;
+  if (Number.isFinite(tabId)) {
+    CONTENT_READY.set(tabId, Date.now());
+    const w = CONTENT_READY_WAITERS.get(tabId);
+    if (w?.resolve) w.resolve(true);
+  }
+  safeLog("Bilgi", `Content hazır: ${String(msg.href || "")}`);
+  sendResponse?.({ ok: true });
+  return true;
+}
+
+// Content tarafı loglarını yan panele taşı (best-effort)
+if (msg?.type === "content_log") {
+  safeLog(String(msg.level || "Bilgi"), String(msg.message || ""));
+  sendResponse?.({ ok: true });
+  return true;
+}
+
+// Content progress (best-effort)
+if (msg?.type === "crawl_progress") {
+  Promise.resolve(queueCount()).then((q) => {
+    const p = msg.progress || {};
+    broadcastProgress({
+      jobName: String(msg.mode || "crawl"),
+      progress: Number(p.pct || 0),
+      step: String(p.step || ""),
+      queue: q
+    });
+  }).catch(() => {});
+  sendResponse?.({ ok: true });
+  return true;
+}
+
   // UI’dan gelen komutlar
   if (msg?.type === "ui_stop") {
     cancelAllJobs();
@@ -171,14 +228,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   if (msg?.type === "ui_start_scan_hesap") {
     const jobId = createJob("hesap_scan");
-    runScanJob(jobId, "hesap_orders", TARGETS.hesapOrders);
+    runScanJob(jobId, "hesap_orders", TARGETS.hesapOrders, msg.options);
     sendResponse?.({ ok: true, jobId });
     return true;
   }
 
   if (msg?.type === "ui_start_scan_smm") {
     const jobId = createJob("smm_scan");
-    runScanJob(jobId, "smm_orders", TARGETS.smmOrders);
+    runScanJob(jobId, "smm_orders", TARGETS.smmOrders, msg.options);
     sendResponse?.({ ok: true, jobId });
     return true;
   }
@@ -232,12 +289,16 @@ async function openWorkerTab(jobId, url) {
 
   await waitTabComplete(tab.id);
 
+  // Content script (document_idle) bazen geç yüklenebilir; kısa bekleme yap
+  try { await waitForContentReady(tab.id, 15000); }
+  catch (e) { safeLog("Uyarı", `Content hazır değil (devam ediliyor): ${formatErr(e)}`); }
+
   // “site” durumunu yay
   const site = url.includes("hesap.com.tr") ? "hesap.com.tr"
             : url.includes("anabayiniz.com") ? "anabayiniz.com"
             : url.includes("script.google.com") ? "script.google.com"
             : "—";
-  broadcastStatus({ online: "bilinmiyor", site });
+  broadcastStatus({ site });
 
   return tab.id;
 }
@@ -263,10 +324,50 @@ function waitTabComplete(tabId) {
   });
 }
 
+
+
+// Content script mesajlaşması: document_idle gecikmesi yüzünden sendMessage bazen erken kaçıyor.
+async function sendMessageWithRetry(tabId, message, opts = {}) {
+  const retries = Number(opts.retries || 25);
+  const baseDelay = Number(opts.baseDelay || 250);
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (e) {
+      const s = formatErr(e);
+      const retryable = /receiving end does not exist|could not establish connection|the message port closed/i.test(s);
+      if (!retryable || i === retries - 1) throw e;
+      await sleep(baseDelay + (i * 120));
+    }
+  }
+  return null;
+}
+
+async function ensureContentScripts(tabId) {
+  // Önce ping ile “receiver var mı” kontrol et
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    return true;
+  } catch {}
+
+  // Gerekirse dosyaları enjekte et (manifest match kaçırırsa da çalışsın)
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content-crawler.js", "content.js"]
+    });
+    try { await waitForContentReady(tabId, 8000); } catch {}
+    return true;
+  } catch (e) {
+    safeLog("Uyarı", `Content script enjekte edilemedi: ${formatErr(e)}`);
+    return false;
+  }
+}
 // ──────────────────────────────────────────────────────────────
 // Bölüm: Tarama Job’ları
 // ──────────────────────────────────────────────────────────────
-async function runScanJob(jobId, mode, urls) {
+async function runScanJob(jobId, mode, urls, uiOptions = {}) {
   safeLog("Bilgi", `Job başladı: ${mode}`);
   broadcastProgress({ jobName: mode, progress: 0, step: "Başlatıldı", queue: await queueCount() });
 
@@ -294,14 +395,15 @@ async function runScanJob(jobId, mode, urls) {
       });
 
       // content script’e komut
-      await chrome.tabs.sendMessage(tabId, {
+      await ensureContentScripts(tabId);
+      await sendMessageWithRetry(tabId, {
         type: "crawl",
         mode,
         url,
         options: {
-          // UI ileride gönderir; şimdilik güvenli varsayımlar
-          safeMode: false,
-          dryRun: false
+          // UI'dan gelen opsiyonlar (dryRun vb.)
+          safeMode: Boolean(uiOptions && uiOptions.safeMode),
+          dryRun: Boolean(uiOptions && uiOptions.dryRun)
         }
       });
 
@@ -351,7 +453,8 @@ async function runMarketJob(jobId, platform, maxPages) {
     let tabId = null;
     try {
       tabId = await openWorkerTab(jobId, url);
-      await chrome.tabs.sendMessage(tabId, {
+      await ensureContentScripts(tabId);
+      await sendMessageWithRetry(tabId, {
         type: "crawl",
         mode,
         url,

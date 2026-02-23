@@ -123,6 +123,12 @@
     return safeTry("onMessage", () => {
       if (!msg || typeof msg !== "object") return false;
 
+      // 0) Healthcheck/ping
+      if (msg.type === "ping") {
+        sendResponse?.({ ok: true, href: location.href });
+        return true;
+      }
+
       // 1) İptal komutu (UI STOP veya job iptali)
       if (msg.type === "cancel_crawl") {
         if (activeRun) {

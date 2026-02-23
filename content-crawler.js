@@ -1,239 +1,296 @@
-/* content.js
+/* content-crawler.js
  *
  * Amaç:
- * - Background/UI komutlarını almak ve content-crawler.js çekirdeğine yönlendirmek
- * - Worker tab "ready" el sıkışması
- * - Selector test + highlight araçları
- * - İptal sinyali ile güvenli durdurma (cancel)
+ * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap/smm siparişleri + rakip/pazar taraması)
+ * - window.__PatpatCrawler altında tek bir run() API'si yayınlamak
  *
- * Not:
- * - Bu dosya tek başına tarama yapmaz; çekirdek content-crawler.js içindedir.
- * - try/catch standardı: tüm handler'lar safeTry ile sarılıdır.
+ * Notlar:
+ * - Bu dosya, content.js tarafından çağrılır.
+ * - DOM yapıları siteye göre değişebileceği için seçiciler “heuristic”tir.
+ * - Çökme yerine boş sonuç + hata kodu döndürmeyi tercih eder.
  */
 
 (() => {
   'use strict';
 
+  const root = window;
+  if (root.__PatpatCrawler) return; // çift yüklemeye karşı
+
+  const Crawler = {};
+
   // ─────────────────────────────────────────────────────────────
-  // Bölüm: Güvenli çalıştırma
+  // Küçük yardımcılar
   // ─────────────────────────────────────────────────────────────
-  function safeTry(label, fn) {
-    try { return fn(); }
-    catch (err) {
-      // Background şu an "log" mesajını dinlemese bile, sessizce yollamak zararsızdır.
-      try {
-        chrome.runtime.sendMessage({
-          type: "content_log",
-          level: "Hata",
-          message: `${label}: ${formatErr(err)}`
-        });
-      } catch {}
-      return undefined;
+  const sleep = (ms, signal) => new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    if (signal) {
+      if (signal.aborted) {
+        clearTimeout(t);
+        reject(new Error('ABORTED'));
+        return;
+      }
+      signal.addEventListener('abort', () => {
+        clearTimeout(t);
+        reject(new Error('ABORTED'));
+      }, { once: true });
     }
+  });
+
+  function text(el) {
+    if (!el) return '';
+    const t = (el.innerText || el.textContent || '').trim();
+    return t.replace(/\s+/g, ' ');
   }
 
-  function formatErr(err) {
-    if (!err) return "Bilinmeyen hata";
-    if (typeof err === "string") return err;
-    const s = err.message || String(err);
-    return s.length > 500 ? s.slice(0, 500) + "…" : s;
+  function normalizeKey(s) {
+    // Header'ları anahtar olarak kullanırken makul normalize
+    const raw = String(s || '').trim();
+    const cleaned = raw
+      .replace(/\s+/g, ' ')
+      .replace(/[:：]+$/g, '')
+      .slice(0, 80);
+
+    if (!cleaned) return 'alan';
+    return cleaned;
+  }
+
+  function bestTable() {
+    const tables = Array.from(document.querySelectorAll('table'));
+    if (tables.length === 0) return null;
+
+    let best = null;
+    let bestScore = -1;
+    for (const t of tables) {
+      const bodyRows = t.querySelectorAll('tbody tr').length;
+      const headCells = t.querySelectorAll('thead th, thead td').length;
+      const score = (bodyRows * 10) + headCells;
+      if (score > bestScore) {
+        bestScore = score;
+        best = t;
+      }
+    }
+    return best;
+  }
+
+  function extractTableRows(table, limit = 500) {
+    const out = [];
+    if (!table) return out;
+
+    // Header
+    let headers = Array.from(table.querySelectorAll('thead th, thead td')).map(h => normalizeKey(text(h)));
+    if (headers.length === 0) {
+      // thead yoksa ilk satırı header gibi kullanmayı dene
+      const first = table.querySelector('tr');
+      if (first) headers = Array.from(first.querySelectorAll('th,td')).map(h => normalizeKey(text(h)));
+    }
+    if (headers.length === 0) headers = ['alan1', 'alan2', 'alan3', 'alan4'];
+
+    const rows = Array.from(table.querySelectorAll('tbody tr'));
+    const dataRows = rows.length ? rows : Array.from(table.querySelectorAll('tr')).slice(1);
+
+    for (const tr of dataRows.slice(0, limit)) {
+      const cells = Array.from(tr.querySelectorAll('td,th'));
+      if (cells.length === 0) continue;
+
+      const obj = {};
+      for (let i = 0; i < Math.max(headers.length, cells.length); i++) {
+        const k = headers[i] || `alan${i + 1}`;
+        obj[k] = text(cells[i]) || '';
+      }
+
+      // Boş satırları atla
+      const nonEmpty = Object.values(obj).some(v => String(v).trim());
+      if (!nonEmpty) continue;
+
+      out.push(obj);
+    }
+
+    return out;
+  }
+
+  function pickIdFromRow(obj) {
+    const keys = Object.keys(obj || {});
+    const candidates = [];
+
+    // ID içerme olasılığı yüksek anahtarlar
+    const keyPriority = [
+      'smmid', 'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
+    ];
+
+    for (const k of keys) {
+      const lk = k.toLowerCase();
+      const v = String(obj[k] || '').trim();
+      if (!v) continue;
+
+      // bariz id
+      if (keyPriority.some(p => lk === p || lk.includes(p))) {
+        const m = v.match(/\d{3,}/);
+        if (m) return m[0];
+      }
+
+      // genel aday
+      const m = v.match(/\d{5,}/);
+      if (m) candidates.push(m[0]);
+    }
+
+    return candidates[0] || '';
+  }
+
+  function hash32(str) {
+    // deterministik hafif hash (market_scan için)
+    let h = 2166136261;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(16);
+  }
+
+  async function waitDomIdle(signal, maxMs = 15000) {
+    const start = Date.now();
+
+    // Hazırsa hemen dön
+    if (document.readyState === 'complete' || document.readyState === 'interactive') return true;
+
+    while (Date.now() - start < maxMs) {
+      if (signal?.aborted) throw new Error('ABORTED');
+      if (document.readyState === 'complete' || document.readyState === 'interactive') return true;
+      await sleep(120, signal);
+    }
+
+    return false;
   }
 
   // ─────────────────────────────────────────────────────────────
-  // Bölüm: İptal yönetimi (cancel token)
+  // Modlar
   // ─────────────────────────────────────────────────────────────
-  let activeRun = null;
-  function newRunContext() {
-    // AbortController: gecikmelerde / beklemelerde kullanılabilir
-    const controller = new AbortController();
+  async function crawlOrders({ mode, onProgress, signal, cancel }) {
+    onProgress?.({ step: 'DOM hazırlanıyor', pct: 10 });
+    await waitDomIdle(signal);
+
+    if (cancel?.()) return { rows: [], meta: {}, errors: ['CANCELLED'] };
+
+    onProgress?.({ step: 'Tablo aranıyor', pct: 25 });
+    const table = bestTable();
+    if (!table) {
+      return {
+        rows: [],
+        meta: { url: location.href, mode, scannedAt: Date.now() },
+        errors: ['TABLE_NOT_FOUND']
+      };
+    }
+
+    onProgress?.({ step: 'Satırlar çıkarılıyor', pct: 55 });
+    const rawRows = extractTableRows(table, 700);
+
+    onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
+    const rows = rawRows.map((r) => {
+      const smmId = pickIdFromRow(r);
+      return {
+        smmId: smmId || `row_${hash32(JSON.stringify(r))}`,
+        source: mode,
+        url: location.href,
+        ...r
+      };
+    });
+
     return {
-      id: `run_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-      cancelled: false,
-      abort() {
-        this.cancelled = true;
-        try { controller.abort(); } catch {}
+      rows,
+      meta: { url: location.href, mode, scannedAt: Date.now(), count: rows.length },
+      errors: []
+    };
+  }
+
+  async function crawlMarket({ mode, options, onProgress, signal, cancel }) {
+    onProgress?.({ step: 'DOM hazırlanıyor', pct: 10 });
+    await waitDomIdle(signal);
+
+    if (cancel?.()) return { rows: [], meta: {}, errors: ['CANCELLED'] };
+
+    onProgress?.({ step: 'İlan kartları aranıyor', pct: 30 });
+
+    // Heuristic: çok sayıda link arasından “kart” gibi görünenleri seç
+    const anchors = Array.from(document.querySelectorAll('a[href]'));
+    const seen = new Set();
+    const rows = [];
+
+    for (const a of anchors) {
+      if (cancel?.()) break;
+
+      const href = a.href || a.getAttribute('href') || '';
+      if (!href) continue;
+
+      // kategori/paging linklerini azalt
+      const lc = href.toLowerCase();
+      const isLikelyListing = lc.includes('ilan') || lc.includes('listing') || lc.includes('product');
+      if (!isLikelyListing) continue;
+
+      const t = text(a);
+      if (t.length < 8 || t.length > 260) continue;
+
+      // görsel/başlık içeriyorsa puan artır, ama basit filtre yeterli
+      const key = href.split('#')[0];
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      rows.push({
+        smmId: `m_${hash32(key)}`,
+        source: mode,
+        platform: String(options?.platform || ''),
+        page: Number(options?.page || 0),
+        url: location.href,
+        href: key,
+        title: t
+      });
+
+      if (rows.length >= 120) break;
+    }
+
+    onProgress?.({ step: 'Tamamlandı', pct: 95 });
+
+    return {
+      rows,
+      meta: {
+        url: location.href,
+        mode,
+        scannedAt: Date.now(),
+        count: rows.length,
+        platform: String(options?.platform || ''),
+        page: Number(options?.page || 0)
       },
-      signal: controller.signal
+      errors: rows.length ? [] : ['MARKET_NO_ITEMS']
     };
   }
 
   // ─────────────────────────────────────────────────────────────
-  // Bölüm: Worker tab ready handshake
+  // Public API
   // ─────────────────────────────────────────────────────────────
-  safeTry("ready_handshake", () => {
-    // Background şu an bunu zorunlu kullanmıyor; ileride load beklemeyi güçlendirmek için var.
-    chrome.runtime.sendMessage({
-      type: "content_ready",
-      href: location.href,
-      ts: Date.now()
-    });
-  });
+  Crawler.run = async function run(args) {
+    const mode = String(args?.mode || 'unknown');
+    const options = args?.options || {};
+    const cancel = typeof args?.cancel === 'function' ? args.cancel : () => false;
+    const signal = args?.signal;
+    const onProgress = typeof args?.onProgress === 'function' ? args.onProgress : null;
 
-  // ─────────────────────────────────────────────────────────────
-  // Bölüm: Highlight/Selector test araçları
-  // ─────────────────────────────────────────────────────────────
-  const HIGHLIGHT_ID = "__patpat_highlight_box__";
-
-  function clearHighlight() {
-    const el = document.getElementById(HIGHLIGHT_ID);
-    if (el) el.remove();
-  }
-
-  function highlightElements(elements) {
-    clearHighlight();
-    if (!elements || elements.length === 0) return;
-
-    // Basit overlay: ilk elemanı highlight et (çoklu durumda da ilk yeterli)
-    const target = elements[0];
-    const rect = target.getBoundingClientRect();
-    const box = document.createElement("div");
-    box.id = HIGHLIGHT_ID;
-    box.style.position = "fixed";
-    box.style.left = `${Math.max(0, rect.left)}px`;
-    box.style.top = `${Math.max(0, rect.top)}px`;
-    box.style.width = `${Math.max(0, rect.width)}px`;
-    box.style.height = `${Math.max(0, rect.height)}px`;
-    box.style.border = "2px solid #6ea8ff";
-    box.style.boxShadow = "0 0 0 4px rgba(110,168,255,.20)";
-    box.style.borderRadius = "10px";
-    box.style.zIndex = "2147483647";
-    box.style.pointerEvents = "none";
-    document.documentElement.appendChild(box);
-
-    // 1.5s sonra otomatik kaldır (UI spam olmasın)
-    setTimeout(() => clearHighlight(), 1500);
-  }
-
-  function testSelector(selector) {
-    if (!selector || typeof selector !== "string") {
-      return { ok: false, count: 0, message: "Seçici boş." };
-    }
     try {
-      const nodes = Array.from(document.querySelectorAll(selector));
-      return { ok: true, count: nodes.length, message: "Seçici çalıştı.", nodes };
+      if (cancel()) return { rows: [], meta: { url: location.href, mode }, errors: ['CANCELLED'] };
+
+      if (mode === 'market_scan') {
+        return await crawlMarket({ mode, options, onProgress, signal, cancel });
+      }
+
+      // default: sipariş taraması
+      return await crawlOrders({ mode, onProgress, signal, cancel });
     } catch (e) {
-      return { ok: false, count: 0, message: `Seçici hatalı: ${formatErr(e)}` };
+      const msg = (e && e.message) ? e.message : String(e);
+      return {
+        rows: [],
+        meta: { url: location.href, mode, scannedAt: Date.now() },
+        errors: ['CRAWLER_EXCEPTION', msg]
+      };
     }
-  }
+  };
 
-  // ─────────────────────────────────────────────────────────────
-  // Bölüm: Background/UI komutları
-  // ─────────────────────────────────────────────────────────────
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    return safeTry("onMessage", () => {
-      if (!msg || typeof msg !== "object") return false;
-
-      // 1) İptal komutu (UI STOP veya job iptali)
-      if (msg.type === "cancel_crawl") {
-        if (activeRun) {
-          activeRun.abort();
-          activeRun = null;
-        }
-        clearHighlight();
-        sendResponse?.({ ok: true, cancelled: true });
-        return true;
-      }
-
-      // 2) Selector test (UI aracı)
-      if (msg.type === "ui_test_selector") {
-        const selector = String(msg.selector || "");
-        const res = testSelector(selector);
-        if (msg.highlight && res.ok) highlightElements(res.nodes);
-        sendResponse?.({
-          ok: res.ok,
-          count: res.count,
-          message: res.message
-        });
-        return true;
-      }
-
-      // 3) Highlight temizle
-      if (msg.type === "ui_clear_highlight") {
-        clearHighlight();
-        sendResponse?.({ ok: true });
-        return true;
-      }
-
-      // 4) Asıl iş: crawl komutu (background.js bunu gönderiyor)
-      if (msg.type === "crawl") {
-        // Önceki run varsa iptal et (çakışmayı engelle)
-        if (activeRun) activeRun.abort();
-        activeRun = newRunContext();
-
-        const mode = String(msg.mode || "unknown");
-        const url = String(msg.url || location.href);
-        const options = msg.options || {};
-
-        // Crawler çekirdeği window üstünde bekleniyor
-        const crawler = window.__PatpatCrawler;
-        if (!crawler || typeof crawler.run !== "function") {
-          const payload = {
-            type: "crawl_result",
-            mode,
-            rows: [],
-            meta: { url, runId: activeRun.id },
-            errors: ["CRAWLER_NOT_FOUND"]
-          };
-          chrome.runtime.sendMessage(payload).catch(() => {});
-          sendResponse?.({ ok: false, error: "CRAWLER_NOT_FOUND" });
-          return true;
-        }
-
-        // Progress callback: background şu an dinlemese de geleceğe dönük
-        const onProgress = (p) => {
-          try {
-            chrome.runtime.sendMessage({
-              type: "crawl_progress",
-              mode,
-              runId: activeRun.id,
-              progress: p
-            });
-          } catch {}
-        };
-
-        // Asenkron çalıştır
-        (async () => {
-          try {
-            onProgress({ step: "Başlatıldı", pct: 0 });
-
-            const result = await crawler.run({
-              mode,
-              url,
-              options,
-              cancel: () => Boolean(activeRun?.cancelled),
-              signal: activeRun.signal,
-              onProgress
-            });
-
-            // Sonuç mesajı: background.js bunu işliyor
-            await chrome.runtime.sendMessage({
-              type: "crawl_result",
-              mode,
-              rows: result.rows || [],
-              meta: result.meta || { url },
-              errors: result.errors || []
-            });
-
-            onProgress({ step: "Tamamlandı", pct: 100 });
-          } catch (e) {
-            await chrome.runtime.sendMessage({
-              type: "crawl_result",
-              mode,
-              rows: [],
-              meta: { url, runId: activeRun?.id || "" },
-              errors: ["CRAWL_FAILED", formatErr(e)]
-            });
-          } finally {
-            activeRun = null;
-          }
-        })();
-
-        // sendResponse hemen döner; background await ediyor olabilir
-        sendResponse?.({ ok: true, accepted: true });
-        return true;
-      }
-
-      return false;
-    });
-  });
+  root.__PatpatCrawler = Crawler;
 })();
