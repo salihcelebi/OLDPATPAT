@@ -12,6 +12,8 @@
  */
 
 (() => {
+  const isExtensionPage = typeof chrome !== 'undefined' && chrome?.runtime?.id && location.href.startsWith(`chrome-extension://${chrome.runtime.id}/`);
+  if (isExtensionPage) return;
   'use strict';
 
   // ─────────────────────────────────────────────────────────────

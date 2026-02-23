@@ -10,6 +10,7 @@
  */
 
 (() => {
+  if (typeof document === 'undefined' || document.body?.dataset?.page !== 'sidepanel') return;
   'use strict';
 
   const root = window;

@@ -28,8 +28,7 @@
     "scripting"
   ],
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "sw.js"
   },
   "side_panel": {
     "default_path": "sidepanel.html"
@@ -43,8 +42,7 @@
         "https://hesap.com.tr/p/sattigim-ilanlar*"
       ],
       "js": [
-        "content-crawler.js",
-        "content.js"
+        "bundle.js"
       ],
       "run_at": "document_idle"
     },
@@ -54,8 +52,7 @@
         "https://anabayiniz.com/orders*"
       ],
       "js": [
-        "content-crawler.js",
-        "content.js"
+        "bundle.js"
       ],
       "run_at": "document_idle"
     }

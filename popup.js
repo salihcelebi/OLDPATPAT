@@ -10,6 +10,7 @@
  */
 
 (() => {
+  if (typeof document === 'undefined' || document.body?.dataset?.page !== 'popup') return;
   'use strict';
 
   const el = (id) => document.getElementById(id);

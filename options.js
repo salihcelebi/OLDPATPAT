@@ -11,6 +11,7 @@
  */
 
 (() => {
+  if (typeof document === 'undefined' || document.body?.dataset?.page !== 'options') return;
   'use strict';
 
   const KEYS = Object.freeze({

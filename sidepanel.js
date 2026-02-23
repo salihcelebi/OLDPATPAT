@@ -13,6 +13,7 @@
  */
 
 (function () {
+  if (typeof document === 'undefined' || document.body?.dataset?.page !== 'sidepanel') return;
   // ───────────────────────────────────────────────────────────────
   // Bölüm 0: Güvenli Çalışma Yardımcıları (try/catch standardı)
   // ───────────────────────────────────────────────────────────────
