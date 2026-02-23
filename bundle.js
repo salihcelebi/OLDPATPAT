@@ -1691,6 +1691,7 @@ function bindEvents() {
       UI.log('Uyarı', 'Kullanıcı işlemi durdurdu.');
       window.Patpat?.Siparis?.stopScan?.();
       window.Patpat?.Rakip?.stopScan?.();
+      window.Patpat?.SMM?.stopScan?.();
       await sendBg({ type: 'ui_stop' }).catch(() => {});
       UI.toast('Tüm işlemler durduruldu.');
     }), 'stop');
@@ -1699,6 +1700,7 @@ function bindEvents() {
       if (!confirm('Tablo ve geçici UI durumu temizlensin mi?')) return;
       window.Patpat?.Siparis?.clearTable?.();
       window.Patpat?.Rakip?.clearTable?.();
+      window.Patpat?.SMM?.clearTable?.();
       await sendBg({ type: 'ui_clear_ui_state' }).catch(() => {});
       UI.toast('UI tablo ve durum temizlendi.');
       window.dispatchEvent(new CustomEvent('patpat:clear-ui-state'));
@@ -2898,7 +2900,7 @@ function bindEvents() {
 /* content-crawler.js
  *
  * Amaç:
- * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap/smm siparişleri + rakip/pazar taraması)
+ * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap siparişleri + rakip/pazar taraması)
  * - window.__PatpatCrawler altında tek bir run() API'si yayınlamak
  *
  * Notlar:
@@ -3013,7 +3015,7 @@ function bindEvents() {
 
     // ID içerme olasılığı yüksek anahtarlar
     const keyPriority = [
-      'smmid', 'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
+      'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
     ];
 
     for (const k of keys) {
@@ -3085,9 +3087,9 @@ function bindEvents() {
 
     onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
     const rows = rawRows.map((r) => {
-      const smmId = pickIdFromRow(r);
+      const rowId = pickIdFromRow(r);
       return {
-        smmId: smmId || `row_${hash32(JSON.stringify(r))}`,
+        rowId: rowId || `row_${hash32(JSON.stringify(r))}`,
         source: mode,
         url: location.href,
         ...r
@@ -3134,7 +3136,7 @@ function bindEvents() {
       seen.add(key);
 
       rows.push({
-        smmId: `m_${hash32(key)}`,
+        rowId: `m_${hash32(key)}`,
         source: mode,
         platform: String(options?.platform || ''),
         page: Number(options?.page || 0),

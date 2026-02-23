@@ -721,6 +721,57 @@
               </div>
               <div class="empty" id="ordersEmpty">Henüz sipariş verisi yok.</div>
             </div>
+
+            <div class="card">
+              <h3>Anabayiniz Orders Taraması</h3>
+              <p>Sadece anabayiniz.com/orders akışını durum bazlı tarar.</p>
+              <div class="row">
+                <select id="selSmmStatus">
+                  <option value="all">Tüm Durumlar</option>
+                  <option value="pending">pending</option>
+                  <option value="completed">completed</option>
+                  <option value="inprogress">inprogress</option>
+                  <option value="canceled">canceled</option>
+                </select>
+                <input id="inpSmmMaxPage" type="number" min="1" max="50" value="5" placeholder="Max sayfa" />
+                <select id="selSmmTimeFilter">
+                  <option value="all">Tüm Zamanlar</option>
+                  <option value="1d">Son 1 Gün</option>
+                  <option value="7d">Son 1 Hafta</option>
+                  <option value="xd">X Gün</option>
+                </select>
+                <input id="inpSmmXDays" type="number" min="1" max="365" value="30" placeholder="X gün" />
+                <button class="btn primary" id="btnSmmStart" type="button">SMM Taramayı Başlat</button>
+                <button class="btn" id="btnSmmStop" type="button">Durdur</button>
+                <button class="btn" id="btnSmmClear" type="button">Temizle</button>
+                <button class="btn" id="btnSmmCopyMd" type="button">MD Kopyala</button>
+                <button class="btn" id="btnSmmExportJson" type="button">JSON Export</button>
+                <button class="btn" id="btnSmmExportCsv" type="button">CSV Export</button>
+              </div>
+              <div class="hint" id="smmStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div>
+            </div>
+
+            <div class="card">
+              <h3>Canlı SMM Tablosu</h3>
+              <p>Anabayiniz siparişleri satır satır eklenir.</p>
+              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
+                <table id="tblSmm" style="width:100%; border-collapse:collapse; min-width:1100px;">
+                  <thead>
+                    <tr>
+                      <th>Sipariş ID</th>
+                      <th>Tarih</th>
+                      <th>Sipariş Link</th>
+                      <th>Birim Fiyat</th>
+                      <th>Servis</th>
+                      <th>Durum</th>
+                      <th>Kalan</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tblSmmBody"></tbody>
+                </table>
+              </div>
+              <div class="empty" id="smmEmpty">Henüz SMM verisi yok.</div>
+            </div>
           </div>
         </section>
 
@@ -1108,6 +1159,7 @@
   <script src="https://js.puter.com/v2/"></script>
   <script src="rakip.js"></script>
   <script src="siparis.js"></script>
+  <script src="smm.js"></script>
   <script src="bundle.js"></script>
 </body>
 </html>
