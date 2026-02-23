@@ -987,27 +987,27 @@
   // ───────────────────────────────────────────────────────────────
   const TAB_MAP = {
     orders: {
-      title: 'Sipariş Yönetimi',
+      title: 'SATIŞLAR_SİPARİŞLER',
       desc: 'Siparişleri tara, standartlaştır, kuyruğa al ve güvenli senkronla.'
     },
     market: {
-      title: 'Rakip ve Pazar Analizi',
+      title: 'RAKİP_ANALİZİ',
       desc: 'Rakipleri tara, fiyat dağılımını gör ve fırsatları çıkar.'
     },
     complaints: {
-      title: 'Müşteri Şikayet Yönetimi',
+      title: 'MÜŞTERİ_ŞİKAYETLERİ',
       desc: 'Şikayetleri sınıflandır, SLA takip et ve yanıt taslakları üret.'
     },
     rules: {
-      title: 'Kurallar ve Öğrenme Merkezi',
+      title: 'PUTER_HARİTASI',
       desc: 'Öğrenme kuyruğunu yönet, test et ve kalıcı kuralları düzenle.'
     },
     reports: {
-      title: 'Raporlar ve Otomasyon',
+      title: 'AKTARIM_KAYDI',
       desc: 'Metrikleri özetle, planlı çalıştırma ve otomasyon kuralları oluştur.'
     },
     files: {
-      title: 'Chrome Eklenti Dosyaları',
+      title: 'AYARLAR',
       desc: 'Çalışma alanı olarak dosyaları içe aktar, düzenle ve dışa aktar.'
     }
   };
@@ -2074,6 +2074,8 @@ function bindEvents() {
       Shared.toast('Rakip verisi indirildi (JSON).');
     }));
 
+    ensureUnifiedExportButtons();
+
     // Önizleme: depolamadan oku
     await refreshOrdersPreview(ordersPreviewWrap);
     await refreshMarketPreview(marketPreviewWrap);
@@ -2146,6 +2148,104 @@ function bindEvents() {
       { key: 'kaynakUrl', label: 'Kaynak' }
     ];
     Shared.renderTable(container, cols, rows.slice(0, 60), { emptyText: 'Henüz rakip verisi yok. Tarama başlatınca burada görünür.' });
+  }
+
+  function ensureUnifiedExportButtons() {
+    const ordersPanel = document.querySelector('.tabpanel[data-tabpanel="orders"] .card .row');
+    if (ordersPanel && !document.getElementById('btnExportJSON')) {
+      const b1 = makeBtn('btnExportJSON', 'JSON Export');
+      const b2 = makeBtn('btnExportCSV', 'CSV Export');
+      const b3 = makeBtn('btnExportHTML', 'HTML Export');
+      const b4 = makeBtn('btnWriteSheets', 'Google Sheets Yaz');
+      ordersPanel.appendChild(b1);
+      ordersPanel.appendChild(b2);
+      ordersPanel.appendChild(b3);
+      ordersPanel.appendChild(b4);
+
+      b1.addEventListener('click', () => Shared.safeTry('JSON export', async () => doExport('json')));
+      b2.addEventListener('click', () => Shared.safeTry('CSV export', async () => doExport('csv')));
+      b3.addEventListener('click', () => Shared.safeTry('HTML export', async () => doExport('html')));
+      b4.addEventListener('click', () => Shared.safeTry('Sheets yaz', async () => writeSheets()));
+    }
+  }
+
+  function makeBtn(id, text) {
+    const b = document.createElement('button');
+    b.id = id;
+    b.className = 'btn';
+    b.type = 'button';
+    b.textContent = text;
+    return b;
+  }
+
+  function csvEscape(v) {
+    const s = String(v ?? '').replace(/\r?\n/g, ' ');
+    return /[",;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function toCsv(rows) {
+    const cols = ['TEKİL ANAHTAR','PLATFORM','PLATFORM SİPARİŞ NO','SMM_ID','SİPARİŞ TARİHİ','DURUM','TUTAR (BRÜT)','KAYNAK BAĞLANTI','HAM METİN'];
+    const body = rows.map(r => cols.map(c => csvEscape(r[c])).join(',')).join('\n');
+    return `\uFEFF${cols.join(',')}\n${body}`;
+  }
+
+  function normalizeOrderRows(rows) {
+    const out = [];
+    for (const r of (rows || [])) {
+      const platform = String(r.platform || r.source || '').toLowerCase() || 'hesap';
+      const orderNo = String(r.orderNo || r['Sipariş No'] || '').replace(/\D+/g,'');
+      const smm = String(r.smmId || '').replace(/\D+/g,'');
+      const title = String(r.title || r.baslik || '');
+      const tarih = String(r.dateTime || r.tarih || '');
+      const tekil = orderNo ? `${platform}|${orderNo}` : `${smm}|${title}|${tarih}`;
+      out.push({
+        'TEKİL ANAHTAR': tekil,
+        'PLATFORM': platform,
+        'PLATFORM SİPARİŞ NO': orderNo,
+        'SMM_ID': smm,
+        'SİPARİŞ TARİHİ': tarih,
+        'DURUM': String(r.status || ''),
+        'TUTAR (BRÜT)': String(r.totalTl || r.toplamTutar || ''),
+        'KAYNAK BAĞLANTI': String(r.url || r.kaynakUrl || location.href),
+        'HAM METİN': String(r.raw || '').slice(0, 1200),
+        'HAM JSON': r
+      });
+    }
+    return out;
+  }
+
+  async function getOrderPreviewRows() {
+    const data = await Shared.getLocal(PREVIEW_KEYS.orders);
+    return normalizeOrderRows(Array.isArray(data?.rows) ? data.rows : []);
+  }
+
+  async function doExport(kind) {
+    const rows = await getOrderPreviewRows();
+    if (!rows.length) return Shared.toast('Önce tablo verisi üretmelisin.');
+    const base = `SATISLAR_SIPARISLER_${rows.length}_${Date.now()}`;
+    if (kind === 'json') return Shared.downloadText(`${base}.json`, JSON.stringify(rows, null, 2), 'application/json');
+    if (kind === 'csv') return Shared.downloadText(`${base}.csv`, toCsv(rows), 'text/csv');
+    if (kind === 'html') {
+      const head = Object.keys(rows[0]);
+      const tr = rows.map(r => `<tr>${head.map(h => `<td>${String(r[h] ?? '')}</td>`).join('')}</tr>`).join('');
+      const html = `<!doctype html><html><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:6px;font-size:12px}</style></head><body><table><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${tr}</tbody></table></body></html>`;
+      return Shared.downloadText(`${base}.html`, html, 'text/html');
+    }
+  }
+
+  async function writeSheets() {
+    const rows = await getOrderPreviewRows();
+    if (!rows.length) return Shared.toast('Sheets için satır yok.');
+    const payload = {
+      action: 'upsert_orders',
+      sheetName: 'SATIŞLAR_SİPARİŞLER',
+      primaryKey: 'TEKİL ANAHTAR',
+      timestamp: new Date().toISOString(),
+      rows
+    };
+    const res = await Shared.sendToBackground('ui_write_sheet', { payload });
+    if (res?.ok) Shared.toast('Google Sheets yazma tetiklendi.');
+    else Shared.toast(`Sheets hata: ${res?.error || 'bilinmiyor'}`);
   }
 
   async function askMarketPlatform() {
@@ -3091,12 +3191,9 @@ function bindEvents() {
  *
  * Amaç:
  * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap/smm siparişleri + rakip/pazar taraması)
+ * - Regex tabanlı ayıklamayı sayfa tipine göre güçlendirmek
+ * - Regex başarısız olursa operasyonel URL + AI fallback teşhis verisi döndürmek
  * - window.__PatpatCrawler altında tek bir run() API'si yayınlamak
- *
- * Notlar:
- * - Bu dosya, content.js tarafından çağrılır.
- * - DOM yapıları siteye göre değişebileceği için seçiciler “heuristic”tir.
- * - Çökme yerine boş sonuç + hata kodu döndürmeyi tercih eder.
  */
 
 (() => {
@@ -3105,258 +3202,288 @@ function bindEvents() {
   'use strict';
 
   const root = window;
-  if (root.__PatpatCrawler) return; // çift yüklemeye karşı
+  if (root.__PatpatCrawler) return;
 
   const Crawler = {};
 
-  // ─────────────────────────────────────────────────────────────
-  // Küçük yardımcılar
-  // ─────────────────────────────────────────────────────────────
+  const REGEX = Object.freeze({
+    hesap: {
+      title: /^(.+?)(?=\nSipariş)/m,
+      orderNo: /(?:Sipari[sş])\s*#(\d+)/i,
+      smmId: /SMM ID:\s*(\d+)/i,
+      dateTime: /(\d{2}\.\d{2}\.\d{4}\s\d{2}:\d{2})/,
+      status: /(?:\d{2}:\d{2}\n)(.+?)(?=\nToplam Tutar)/m,
+      totalTl: /(\d+(?:,\d+)?)\s*TL/i
+    },
+    market: {
+      seller: /^(?!(?:Ç\nO\nK\nS\nA\nT\nA\nN|VİTRİN İLANI|İLGİNİZİ ÇEKEBİLİR))([a-zA-Z0-9_]{3,20})$/m,
+      service: /^(?!(?:Sipariş|SMM ID|Garanti|Başarılı|Toplam|TL|%))(.{10,100})$/m,
+      warranty: /Garanti:\s*(\d+\s*(?:Gün|Saat))/i,
+      successCount: /(?<=Gün|Saat)(\d{1,3}(?:\.\d{3})*)/i,
+      priceTl: /(\d+(?:,\d+)?)\s*TL/i,
+      discount: /%\d+/
+    },
+    anabayi: {
+      orderId: /^(\d{7,10})$/m,
+      dateTime: /(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})/,
+      orderLink: /https?:\/\/[^\s\]]+/,
+      unitPrice: /(\d+(?:\.\d+)?)/,
+      qty: /(?<=\d\t)(\d+)(?=\t)/,
+      serviceCode: /(\d+\s*—\s*.*)/,
+      status: /(Tamamlandı|İşlem Sırasında|Beklemede|İptal Edildi|Kısmi Tamamlandı|İade Edildi)/,
+      remain: /(?<=\t)(\d+)$/
+    },
+    generalNumeric: /(?<=#|ID:\s|Gün|Saat)\d+[\d.]*/i
+  });
+
+  const OPERATIONAL_URLS = Object.freeze({
+    hesapOrders: [
+      'https://hesap.com.tr/p/sattigim-ilanlar',
+      'https://hesap.com.tr/p/sattigim-ilanlar?status=pending',
+      'https://hesap.com.tr/p/sattigim-ilanlar?status=processing',
+      'https://hesap.com.tr/p/sattigim-ilanlar?status=completed',
+      'https://hesap.com.tr/p/sattigim-ilanlar?status=cancelled',
+      'https://hesap.com.tr/p/sattigim-ilanlar?status=returnprocess'
+    ],
+    anabayiOrders: [
+      'https://anabayiniz.com/orders',
+      'https://anabayiniz.com/orders/pending',
+      'https://anabayiniz.com/orders/completed',
+      'https://anabayiniz.com/orders/inprogress',
+      'https://anabayiniz.com/orders/canceled'
+    ]
+  });
+
+  const PLATFORM_SERVICE_PATHS = Object.freeze({
+    tiktok: ['hesap', 'takipci', 'begeni', 'izlenme', 'yorum', 'kaydet', 'paylas', 'canli-yayin-izleyici', 'pk-savas-puani'],
+    instagram: ['hesap', 'takipci', 'begeni', 'izlenme', 'yorum', 'kaydet', 'paylas', 'canli-yayin-izleyici', 'hikaye-izlenme', 'reels-izlenme'],
+    youtube: ['hesap', 'takipci', 'begeni', 'izlenme', 'yorum', 'kaydet', 'paylas', 'canli-yayin-izleyici', 'abone', 'izlenme-suresi'],
+    twitter: ['retweet', 'goruntulenme'],
+    twitch: ['izleyici']
+  });
+
   const sleep = (ms, signal) => new Promise((resolve, reject) => {
     const t = setTimeout(resolve, ms);
     if (signal) {
-      if (signal.aborted) {
-        clearTimeout(t);
-        reject(new Error('ABORTED'));
-        return;
-      }
-      signal.addEventListener('abort', () => {
-        clearTimeout(t);
-        reject(new Error('ABORTED'));
-      }, { once: true });
+      if (signal.aborted) return reject(new Error('ABORTED'));
+      signal.addEventListener('abort', () => { clearTimeout(t); reject(new Error('ABORTED')); }, { once: true });
     }
   });
 
   function text(el) {
     if (!el) return '';
-    const t = (el.innerText || el.textContent || '').trim();
-    return t.replace(/\s+/g, ' ');
+    return String(el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
   }
-
+  function pageText() {
+    return String(document.body?.innerText || '').slice(0, 150000);
+  }
   function normalizeKey(s) {
-    // Header'ları anahtar olarak kullanırken makul normalize
-    const raw = String(s || '').trim();
-    const cleaned = raw
-      .replace(/\s+/g, ' ')
-      .replace(/[:：]+$/g, '')
-      .slice(0, 80);
-
-    if (!cleaned) return 'alan';
-    return cleaned;
+    const cleaned = String(s || '').trim().replace(/\s+/g, ' ').replace(/[:：]+$/g, '').slice(0, 80);
+    return cleaned || 'alan';
+  }
+  function hash32(str) {
+    let h = 2166136261;
+    const s = String(str || '');
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0).toString(16);
   }
 
   function bestTable() {
     const tables = Array.from(document.querySelectorAll('table'));
-    if (tables.length === 0) return null;
-
-    let best = null;
-    let bestScore = -1;
+    if (!tables.length) return null;
+    let best = null; let score = -1;
     for (const t of tables) {
-      const bodyRows = t.querySelectorAll('tbody tr').length;
-      const headCells = t.querySelectorAll('thead th, thead td').length;
-      const score = (bodyRows * 10) + headCells;
-      if (score > bestScore) {
-        bestScore = score;
-        best = t;
-      }
+      const s = t.querySelectorAll('tbody tr').length * 10 + t.querySelectorAll('thead th, thead td').length;
+      if (s > score) { score = s; best = t; }
     }
     return best;
   }
 
-  function extractTableRows(table, limit = 500) {
+  function extractTableRows(table, limit = 700) {
     const out = [];
     if (!table) return out;
-
-    // Header
-    let headers = Array.from(table.querySelectorAll('thead th, thead td')).map(h => normalizeKey(text(h)));
-    if (headers.length === 0) {
-      // thead yoksa ilk satırı header gibi kullanmayı dene
+    let headers = Array.from(table.querySelectorAll('thead th, thead td')).map((h) => normalizeKey(text(h)));
+    if (!headers.length) {
       const first = table.querySelector('tr');
-      if (first) headers = Array.from(first.querySelectorAll('th,td')).map(h => normalizeKey(text(h)));
+      if (first) headers = Array.from(first.querySelectorAll('th,td')).map((h) => normalizeKey(text(h)));
     }
-    if (headers.length === 0) headers = ['alan1', 'alan2', 'alan3', 'alan4'];
+    if (!headers.length) headers = ['alan1', 'alan2', 'alan3'];
 
-    const rows = Array.from(table.querySelectorAll('tbody tr'));
-    const dataRows = rows.length ? rows : Array.from(table.querySelectorAll('tr')).slice(1);
-
-    for (const tr of dataRows.slice(0, limit)) {
+    const rows = table.querySelectorAll('tbody tr').length ? Array.from(table.querySelectorAll('tbody tr')) : Array.from(table.querySelectorAll('tr')).slice(1);
+    for (const tr of rows.slice(0, limit)) {
       const cells = Array.from(tr.querySelectorAll('td,th'));
-      if (cells.length === 0) continue;
-
+      if (!cells.length) continue;
       const obj = {};
-      for (let i = 0; i < Math.max(headers.length, cells.length); i++) {
-        const k = headers[i] || `alan${i + 1}`;
-        obj[k] = text(cells[i]) || '';
-      }
-
-      // Boş satırları atla
-      const nonEmpty = Object.values(obj).some(v => String(v).trim());
-      if (!nonEmpty) continue;
-
+      for (let i = 0; i < Math.max(headers.length, cells.length); i++) obj[headers[i] || `alan${i + 1}`] = text(cells[i]) || '';
+      if (!Object.values(obj).some((v) => String(v).trim())) continue;
       out.push(obj);
     }
-
     return out;
   }
 
-  function pickIdFromRow(obj) {
-    const keys = Object.keys(obj || {});
-    const candidates = [];
-
-    // ID içerme olasılığı yüksek anahtarlar
-    const keyPriority = [
-      'smmid', 'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
-    ];
-
-    for (const k of keys) {
-      const lk = k.toLowerCase();
-      const v = String(obj[k] || '').trim();
-      if (!v) continue;
-
-      // bariz id
-      if (keyPriority.some(p => lk === p || lk.includes(p))) {
-        const m = v.match(/\d{3,}/);
-        if (m) return m[0];
+  function parseByRegex(lines, type) {
+    const out = [];
+    for (const ln of lines) {
+      const row = { raw: ln };
+      if (type === 'hesap') {
+        row.title = REGEX.hesap.title.exec(ln)?.[1] || '';
+        row.orderNo = REGEX.hesap.orderNo.exec(ln)?.[1] || '';
+        row.smmId = REGEX.hesap.smmId.exec(ln)?.[1] || '';
+        row.dateTime = REGEX.hesap.dateTime.exec(ln)?.[1] || '';
+        row.status = REGEX.hesap.status.exec(ln)?.[1] || '';
+        row.totalTl = REGEX.hesap.totalTl.exec(ln)?.[1] || '';
+      } else if (type === 'anabayi') {
+        row.orderId = REGEX.anabayi.orderId.exec(ln)?.[1] || '';
+        row.dateTime = REGEX.anabayi.dateTime.exec(ln)?.[1] || '';
+        row.link = REGEX.anabayi.orderLink.exec(ln)?.[0] || '';
+        row.unitPrice = REGEX.anabayi.unitPrice.exec(ln)?.[1] || '';
+        row.qty = REGEX.anabayi.qty.exec(ln)?.[1] || '';
+        row.service = REGEX.anabayi.serviceCode.exec(ln)?.[1] || '';
+        row.status = REGEX.anabayi.status.exec(ln)?.[1] || '';
+        row.remain = REGEX.anabayi.remain.exec(ln)?.[1] || '';
       }
-
-      // genel aday
-      const m = v.match(/\d{5,}/);
-      if (m) candidates.push(m[0]);
+      const fallbackId = REGEX.generalNumeric.exec(ln)?.[0] || '';
+      row.smmId = row.smmId || row.orderId || fallbackId;
+      const hasData = Object.keys(row).some((k) => k !== 'raw' && String(row[k] || '').trim());
+      if (hasData) out.push(row);
     }
-
-    return candidates[0] || '';
+    return out;
   }
 
-  function hash32(str) {
-    // deterministik hafif hash (market_scan için)
-    let h = 2166136261;
-    const s = String(str || '');
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619);
+  function detectMarketServiceFromHref(href) {
+    const lc = String(href || '').toLowerCase();
+    for (const [platform, services] of Object.entries(PLATFORM_SERVICE_PATHS)) {
+      for (const svc of services) {
+        const token = `/ilanlar/${platform}-${svc}-satin-al`;
+        if (lc.includes(token)) return { platform, service: svc };
+      }
+      if (lc.includes(`/ilanlar/${platform}-`)) return { platform, service: 'genel' };
     }
-    return (h >>> 0).toString(16);
+    return { platform: '', service: '' };
   }
 
   async function waitDomIdle(signal, maxMs = 15000) {
     const start = Date.now();
-
-    // Hazırsa hemen dön
     if (document.readyState === 'complete' || document.readyState === 'interactive') return true;
-
     while (Date.now() - start < maxMs) {
       if (signal?.aborted) throw new Error('ABORTED');
       if (document.readyState === 'complete' || document.readyState === 'interactive') return true;
       await sleep(120, signal);
     }
-
     return false;
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Modlar
-  // ─────────────────────────────────────────────────────────────
+  function buildRegexFallback(errorCode, type) {
+    const textDump = pageText();
+    const urls = type === 'hesap' ? OPERATIONAL_URLS.hesapOrders : OPERATIONAL_URLS.anabayiOrders;
+    return {
+      rows: [],
+      meta: { url: location.href, mode: type, scannedAt: Date.now(), fallback: 'copy_page_and_ask_ai', operationalUrls: urls },
+      errors: [errorCode, 'REGEX_NO_MATCH'],
+      aiAsk: {
+        action: 'copy_page_and_ask_ai',
+        prompt: 'Regex eşleşmedi. Sayfayı kopyala ve AI ile yeni ayıklama kuralı öner.',
+        sample: textDump.slice(0, 5000)
+      }
+    };
+  }
+
   async function crawlOrders({ mode, onProgress, signal, cancel }) {
     onProgress?.({ step: 'DOM hazırlanıyor', pct: 10 });
     await waitDomIdle(signal);
-
     if (cancel?.()) return { rows: [], meta: {}, errors: ['CANCELLED'] };
+
+    const href = String(location.href || '');
+    const isHesap = /hesap\.com\.tr\/p\/sattigim-ilanlar/i.test(href);
+    const isAnabayi = /anabayiniz\.com\/orders/i.test(href);
 
     onProgress?.({ step: 'Tablo aranıyor', pct: 25 });
     const table = bestTable();
-    if (!table) {
-      return {
-        rows: [],
-        meta: { url: location.href, mode, scannedAt: Date.now() },
-        errors: ['TABLE_NOT_FOUND']
-      };
+    const tableRows = extractTableRows(table, 700);
+
+    if (isHesap || isAnabayi) {
+      onProgress?.({ step: 'Regex ayıklama', pct: 55 });
+      const chunks = pageText().split(/\n{2,}/).filter(Boolean).slice(0, 2000);
+      const regexRows = parseByRegex(chunks, isHesap ? 'hesap' : 'anabayi');
+      const sourceRows = regexRows.length ? regexRows : tableRows;
+
+      const rows = sourceRows.map((r) => ({
+        smmId: String(r.smmId || r.orderNo || r.orderId || `row_${hash32(JSON.stringify(r))}`),
+        source: mode,
+        url: href,
+        ...r
+      }));
+
+      if (!rows.length) return buildRegexFallback(isHesap ? 'HESAP_NO_DATA' : 'ANABAYI_NO_DATA', isHesap ? 'hesap' : 'anabayi');
+
+      return { rows, meta: { url: href, mode, scannedAt: Date.now(), count: rows.length, regexMode: true }, errors: [] };
     }
 
-    onProgress?.({ step: 'Satırlar çıkarılıyor', pct: 55 });
-    const rawRows = extractTableRows(table, 700);
+    if (!table) return { rows: [], meta: { url: href, mode, scannedAt: Date.now() }, errors: ['TABLE_NOT_FOUND'] };
 
-    onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
-    const rows = rawRows.map((r) => {
-      const smmId = pickIdFromRow(r);
-      return {
-        smmId: smmId || `row_${hash32(JSON.stringify(r))}`,
-        source: mode,
-        url: location.href,
-        ...r
-      };
-    });
-
-    return {
-      rows,
-      meta: { url: location.href, mode, scannedAt: Date.now(), count: rows.length },
-      errors: []
-    };
+    onProgress?.({ step: 'Satırlar çıkarılıyor', pct: 60 });
+    const rows = tableRows.map((r) => ({ smmId: String(r.smmId || `row_${hash32(JSON.stringify(r))}`), source: mode, url: href, ...r }));
+    return { rows, meta: { url: href, mode, scannedAt: Date.now(), count: rows.length }, errors: [] };
   }
 
   async function crawlMarket({ mode, options, onProgress, signal, cancel }) {
     onProgress?.({ step: 'DOM hazırlanıyor', pct: 10 });
     await waitDomIdle(signal);
-
     if (cancel?.()) return { rows: [], meta: {}, errors: ['CANCELLED'] };
 
     onProgress?.({ step: 'İlan kartları aranıyor', pct: 30 });
 
-    // Heuristic: çok sayıda link arasından “kart” gibi görünenleri seç
     const anchors = Array.from(document.querySelectorAll('a[href]'));
     const seen = new Set();
     const rows = [];
 
     for (const a of anchors) {
       if (cancel?.()) break;
-
       const href = a.href || a.getAttribute('href') || '';
       if (!href) continue;
-
-      // kategori/paging linklerini azalt
       const lc = href.toLowerCase();
-      const isLikelyListing = lc.includes('ilan') || lc.includes('listing') || lc.includes('product');
-      if (!isLikelyListing) continue;
-
+      if (!lc.includes('/ilanlar/')) continue;
       const t = text(a);
-      if (t.length < 8 || t.length > 260) continue;
-
-      // görsel/başlık içeriyorsa puan artır, ama basit filtre yeterli
+      if (t.length < 4 || t.length > 260) continue;
       const key = href.split('#')[0];
       if (seen.has(key)) continue;
       seen.add(key);
 
+      const svc = detectMarketServiceFromHref(key);
+      const pageTxt = `${t}\n${a.closest('article,li,div')?.innerText || ''}`;
+      const seller = REGEX.market.seller.exec(pageTxt)?.[1] || '';
+      const serviceName = REGEX.market.service.exec(pageTxt)?.[1] || svc.service;
+      const price = REGEX.market.priceTl.exec(pageTxt)?.[1] || '';
+      const warranty = REGEX.market.warranty.exec(pageTxt)?.[1] || '';
+      const discount = REGEX.market.discount.exec(pageTxt)?.[0] || '';
+
       rows.push({
         smmId: `m_${hash32(key)}`,
         source: mode,
-        platform: String(options?.platform || ''),
+        platform: svc.platform || String(options?.platform || ''),
+        service: serviceName,
+        seller,
+        warranty,
+        priceTl: price,
+        discount,
         page: Number(options?.page || 0),
         url: location.href,
         href: key,
         title: t
       });
 
-      if (rows.length >= 120) break;
+      if (rows.length >= 180) break;
     }
 
     onProgress?.({ step: 'Tamamlandı', pct: 95 });
 
     return {
       rows,
-      meta: {
-        url: location.href,
-        mode,
-        scannedAt: Date.now(),
-        count: rows.length,
-        platform: String(options?.platform || ''),
-        page: Number(options?.page || 0)
-      },
+      meta: { url: location.href, mode, scannedAt: Date.now(), count: rows.length, platform: String(options?.platform || ''), page: Number(options?.page || 0), regexMode: true },
       errors: rows.length ? [] : ['MARKET_NO_ITEMS']
     };
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // Public API
-  // ─────────────────────────────────────────────────────────────
   Crawler.run = async function run(args) {
     const mode = String(args?.mode || 'unknown');
     const options = args?.options || {};
@@ -3366,20 +3493,11 @@ function bindEvents() {
 
     try {
       if (cancel()) return { rows: [], meta: { url: location.href, mode }, errors: ['CANCELLED'] };
-
-      if (mode === 'market_scan') {
-        return await crawlMarket({ mode, options, onProgress, signal, cancel });
-      }
-
-      // default: sipariş taraması
+      if (mode === 'market_scan') return await crawlMarket({ mode, options, onProgress, signal, cancel });
       return await crawlOrders({ mode, onProgress, signal, cancel });
     } catch (e) {
       const msg = (e && e.message) ? e.message : String(e);
-      return {
-        rows: [],
-        meta: { url: location.href, mode, scannedAt: Date.now() },
-        errors: ['CRAWLER_EXCEPTION', msg]
-      };
+      return { rows: [], meta: { url: location.href, mode, scannedAt: Date.now() }, errors: ['CRAWLER_EXCEPTION', msg] };
     }
   };
 
@@ -4009,3 +4127,516 @@ function bindEvents() {
   boot();
 })();
 /* ===== END options.js ===== */
+
+/* ===== BEGIN bundle-enhancer.js ===== */
+(() => {
+  'use strict';
+
+  const root = typeof window !== 'undefined' ? window : globalThis;
+  const runtimeId = (() => {
+    try { return chrome?.runtime?.id || ''; } catch { return ''; }
+  })();
+  const href = (() => {
+    try { return String(location?.href || ''); } catch { return ''; }
+  })();
+  const dataPage = (() => {
+    try { return String(document?.body?.dataset?.page || ''); } catch { return ''; }
+  })();
+
+  const Ctx = {
+    isExtensionPage: Boolean(runtimeId && href.startsWith(`chrome-extension://${runtimeId}/`)),
+    isSidepanel: dataPage === 'sidepanel',
+    isPopup: dataPage === 'popup',
+    isOptions: dataPage === 'options',
+    isContent: Boolean(runtimeId) && !(runtimeId && href.startsWith(`chrome-extension://${runtimeId}/`))
+  };
+
+  const PROD = true;
+  const log = (lvl, msg, err) => {
+    try {
+      const text = `[bundle:${lvl}] ${msg}`;
+      if (!PROD && err) console.error(text, err);
+      else if (!PROD) console.log(text);
+      if (chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage({ type: 'content_log', level: lvl, message: text }).catch?.(() => {});
+      }
+    } catch {}
+  };
+
+  const once = (el, ev, fn, key = '__patpat_once') => {
+    try {
+      if (!el) return;
+      const k = `${key}:${ev}`;
+      if (el[k]) return;
+      el.addEventListener(ev, fn);
+      el[k] = true;
+    } catch (e) { log('Hata', 'bindOnce başarısız', e); }
+  };
+
+  const debounce = (fn, ms = 200) => {
+    let t = null;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  };
+
+  function slugify(s) {
+    return String(s || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toUpperCase() || 'GENEL';
+  }
+
+  function ts() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  }
+
+  function maskPII(val) {
+    return String(val ?? '')
+      .replace(/([\w.%+-]{2})[\w.%+-]*@([\w.-]+\.[A-Za-z]{2,})/g, '$1***@$2')
+      .replace(/\b(\+?\d{2,3}[\s-]?)?\d{3}[\s-]?\d{3,4}[\s-]?\d{2,4}\b/g, '***-***-****');
+  }
+
+  async function hashHex(input) {
+    try {
+      const bytes = new TextEncoder().encode(String(input || ''));
+      const out = await crypto.subtle.digest('SHA-256', bytes);
+      return [...new Uint8Array(out)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      let h = 2166136261;
+      const s = String(input || '');
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+      return (h >>> 0).toString(16);
+    }
+  }
+
+  async function normalizeRows(rows) {
+    const arr = Array.isArray(rows) ? rows : [];
+    const seen = new Set();
+    const out = [];
+    for (const r of arr) {
+      const item = {
+        platform: String(r.platform || r.source || '').toLowerCase(),
+        service: String(r.service || r.hizmet || '').trim(),
+        smmId: String(r.smmId || r.id || '').trim(),
+        customer: maskPII(r.customer || r.musteri || r['Müşteri'] || ''),
+        title: String(r.title || r.baslik || '').trim(),
+        qty: Number(r.qty || r.adet || 0) || 0,
+        amount: Number(r.amount || r.tutar || 0) || 0,
+        date: (() => {
+          const d = r.date || r.tarih || Date.now();
+          const x = new Date(d);
+          return Number.isNaN(x.getTime()) ? new Date().toISOString() : x.toISOString();
+        })(),
+        url: String(r.url || r.href || '').trim(),
+        raw: r
+      };
+      const fingerprint = await hashHex(JSON.stringify([item.platform, item.service, item.smmId, item.customer, item.title, item.qty, item.amount, item.date]));
+      if (seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+      out.push(item);
+    }
+    return out;
+  }
+
+  function toCSV(rows) {
+    const cols = ['platform', 'service', 'smmId', 'customer', 'title', 'qty', 'amount', 'date', 'url'];
+    const esc = (v) => {
+      const s = String(v ?? '').replace(/\r?\n/g, ' ');
+      return /[",;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const body = rows.map((r) => cols.map((c) => esc(r[c])).join(',')).join('\n');
+    return `\uFEFF${cols.join(',')}\n${body}`;
+  }
+
+  function toHTML(rows, title = 'Patpat Export') {
+    const th = ['Platform', 'Hizmet', 'SMM ID', 'Müşteri', 'Başlık', 'Adet', 'Tutar', 'Tarih', 'URL'];
+    const tr = rows.map((r, i) => `<tr class="${i % 2 ? 'odd' : 'even'}"><td>${r.platform}</td><td>${r.service}</td><td>${r.smmId}</td><td>${r.customer}</td><td>${r.title}</td><td>${r.qty}</td><td>${r.amount}</td><td>${r.date}</td><td>${r.url}</td></tr>`).join('');
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font-family:system-ui;padding:12px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #ddd;padding:6px;word-break:break-word}.odd{background:#fafafa}@media(max-width:700px){table{display:block;overflow:auto}}</style></head><body><h3>${title}</h3><table><thead><tr>${th.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${tr}</tbody></table></body></html>`;
+  }
+
+  function toTXT(rows, summary = {}) {
+    const lines = [
+      'PATPAT RAPOR',
+      `Tarih: ${new Date().toISOString()}`,
+      `Toplam Kayıt: ${rows.length}`,
+      `Platform: ${summary.platform || '-'}`,
+      `Hizmet: ${summary.service || '-'}`,
+      '---'
+    ];
+    rows.forEach((r, i) => lines.push(`${i + 1}. [${r.platform}] ${r.service} | ${r.smmId} | ${r.customer} | ${r.qty} | ${r.date}`));
+    return lines.join('\n');
+  }
+
+  function download(filename, content, mime) {
+    try {
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { log('Hata', 'download başarısız', e); }
+  }
+
+  async function copyToClipboard(rows, asJson) {
+    try {
+      const text = asJson ? JSON.stringify(rows, null, 2) : rows.map((r) => `${r.platform}\t${r.service}\t${r.smmId}\t${r.customer}\t${r.qty}\t${r.date}`).join('\n');
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      log('Uyarı', 'clipboard yazılamadı', e);
+      return false;
+    }
+  }
+
+  function createUiShellIfMissing() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      if (document.getElementById('patpatEnhancerRoot')) return;
+      const main = document.querySelector('main') || document.body;
+      const block = document.createElement('section');
+      block.id = 'patpatEnhancerRoot';
+      block.style.margin = '10px 14px';
+      block.innerHTML = `
+        <div id="enhProgress" style="border:1px solid rgba(255,255,255,.16);padding:10px;border-radius:12px;background:rgba(15,22,48,.45)">
+          <div id="enhProgressMeta" style="font-size:12px;opacity:.9">İlerleme: %0 • Adım: Beklemede • Kuyruk: 0</div>
+          <div style="height:8px;background:#202847;border-radius:999px;margin-top:8px;overflow:hidden"><div id="enhProgressFill" style="height:100%;width:0%;background:linear-gradient(90deg,#6ea8ff,#9b7bff)"></div></div>
+          <div id="enhActions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"></div>
+        </div>`;
+      main.prepend(block);
+    } catch (e) { log('Uyarı', 'UI shell inject edilemedi', e); }
+  }
+
+  function ensureExportMenu() {
+    if (!Ctx.isSidepanel) return null;
+    try {
+      const actions = document.getElementById('enhActions');
+      if (!actions) return null;
+      if (document.getElementById('enhExportMenu')) return document.getElementById('enhExportMenu');
+      const wrap = document.createElement('div');
+      wrap.id = 'enhExportMenu';
+      wrap.style.display = 'none';
+      wrap.innerHTML = `
+        <button id="enhExportJson" class="btn" type="button">Export JSON</button>
+        <button id="enhExportCsv" class="btn" type="button">Export CSV</button>
+        <button id="enhExportHtml" class="btn" type="button">Export HTML</button>
+        <button id="enhExportTxt" class="btn" type="button">Export TXT</button>
+        <button id="enhCopyTable" class="btn" type="button">Kopyala (Tablo)</button>
+        <button id="enhCopyJson" class="btn" type="button">Kopyala (JSON)</button>`;
+      actions.appendChild(wrap);
+      return wrap;
+    } catch (e) { log('Hata', 'export menu kurulamadı', e); return null; }
+  }
+
+  async function getExportPayload() {
+    try {
+      const a = await chrome.storage.local.get(['patpat_last_market_preview', 'patpat_last_orders_preview']);
+      const src = a.patpat_last_market_preview || a.patpat_last_orders_preview || [];
+      return await normalizeRows(src);
+    } catch {
+      return [];
+    }
+  }
+
+  function makeFilename(rows, searchTerm) {
+    const platform = slugify(rows[0]?.platform || 'PLATFORM');
+    const service = slugify(rows[0]?.service || 'HIZMET');
+    const count = String(rows.length || 0);
+    const q = searchTerm ? `_${slugify(searchTerm)}` : '';
+    return `${platform}_${service}_${count}${q}_${ts()}`;
+  }
+
+  async function wireExportButtons() {
+    if (!Ctx.isSidepanel) return;
+    const menu = ensureExportMenu();
+    if (!menu) return;
+
+    const execute = async (kind) => {
+      try {
+        const rows = await getExportPayload();
+        if (!rows.length) return;
+        const q = document.getElementById('globalSearch')?.value?.trim() || '';
+        const base = makeFilename(rows, q);
+        if (kind === 'json') download(`${base}.json`, JSON.stringify({ schema: 'patpat.v1', count: rows.length, rows }, null, 2), 'application/json;charset=utf-8');
+        if (kind === 'csv') download(`${base}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
+        if (kind === 'html') download(`${base}.html`, toHTML(rows, base), 'text/html;charset=utf-8');
+        if (kind === 'txt') download(`${base}.txt`, toTXT(rows, { platform: rows[0]?.platform, service: rows[0]?.service }), 'text/plain;charset=utf-8');
+      } catch (e) { log('Hata', `export ${kind} başarısız`, e); }
+    };
+
+    once(document.getElementById('enhExportJson'), 'click', () => execute('json'));
+    once(document.getElementById('enhExportCsv'), 'click', () => execute('csv'));
+    once(document.getElementById('enhExportHtml'), 'click', () => execute('html'));
+    once(document.getElementById('enhExportTxt'), 'click', () => execute('txt'));
+    once(document.getElementById('enhCopyTable'), 'click', async () => { const rows = await getExportPayload(); await copyToClipboard(rows, false); });
+    once(document.getElementById('enhCopyJson'), 'click', async () => { const rows = await getExportPayload(); await copyToClipboard(rows, true); });
+  }
+
+  function wireStopAndSheets() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      const btnStop = document.getElementById('btnStop');
+      once(btnStop, 'click', async () => {
+        try { await chrome.runtime.sendMessage({ type: 'ui_stop' }); } catch {}
+        updateProgress({ progress: 0, step: 'Durduruldu', queue: 0 });
+      });
+
+      const btnSheets = document.getElementById('btnSyncNow');
+      once(btnSheets, 'click', async () => {
+        try {
+          const rows = await getExportPayload();
+          await chrome.runtime.sendMessage({ type: 'ui_sync_now', payload: { rows } });
+        } catch (e) { log('Uyarı', 'Sheets tetiklenemedi', e); }
+      });
+    } catch (e) { log('Uyarı', 'stop/sheets wiring başarısız', e); }
+  }
+
+  function updateProgress({ progress = 0, step = 'Beklemede', queue = 0 }) {
+    try {
+      const meta = document.getElementById('enhProgressMeta');
+      const fill = document.getElementById('enhProgressFill');
+      if (meta) meta.textContent = `İlerleme: %${Math.max(0, Math.min(100, Number(progress) || 0))} • Adım: ${step} • Kuyruk: ${queue}`;
+      if (fill) fill.style.width = `${Math.max(0, Math.min(100, Number(progress) || 0))}%`;
+    } catch {}
+  }
+
+  function wireBroadcastListener() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      const port = chrome.runtime.connect({ name: 'patpat_sidepanel' });
+      port.onMessage.addListener((msg) => {
+        try {
+          if (msg?.type === 'progress') {
+            updateProgress({ progress: msg.progress, step: msg.step, queue: msg.queue });
+            if (Number(msg.progress) >= 95) {
+              const menu = ensureExportMenu();
+              if (menu) menu.style.display = 'flex';
+            }
+          }
+          if (msg?.type === 'status') {
+            if (msg.online) {
+              const el = document.getElementById('pill-online');
+              if (el) el.textContent = `Online: ${msg.online}`;
+            }
+          }
+        } catch (e) { log('Uyarı', 'broadcast işlenemedi', e); }
+      });
+    } catch (e) { log('Uyarı', 'port bağlantısı kurulamadı', e); }
+  }
+
+  function wireDynamicFilter() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      const input = document.getElementById('globalSearch');
+      const list = document.getElementById('fileList');
+      if (!input || !list) return;
+      once(input, 'input', debounce(() => {
+        const q = input.value.trim().toLowerCase();
+        list.querySelectorAll('[data-path], [data-name], li, button, .item').forEach((el) => {
+          const t = (el.getAttribute('data-path') || el.getAttribute('data-name') || el.textContent || '').toLowerCase();
+          el.style.display = (!q || t.includes(q)) ? '' : 'none';
+        });
+      }, 180));
+    } catch (e) { log('Uyarı', 'dinamik filtre kurulamadı', e); }
+  }
+
+  function wireStatusRefresh() {
+    if (!Ctx.isSidepanel) return;
+    const tick = async () => {
+      try {
+        const ai = root.Patpat?.AI;
+        const aiReady = Boolean(ai && (ai.isReady?.() || ai.MODELS?.length));
+        const online = navigator.onLine ? 'online' : 'offline';
+        const p1 = document.getElementById('pill-online');
+        const p2 = document.getElementById('pill-ai');
+        if (p1) p1.textContent = `Online: ${online}`;
+        if (p2) p2.textContent = `AI: ${aiReady ? 'Açık' : 'Kapalı'}`;
+      } catch {}
+    };
+    tick();
+    setInterval(tick, 30_000);
+  }
+
+  function wireAIFallback() {
+    try {
+      const AI = root.Patpat?.AI;
+      if (!AI || AI.runWithFallback) return;
+      AI.runWithFallback = async (args) => {
+        try {
+          return await AI.run(args);
+        } catch (e1) {
+          try {
+            if (root.puter?.ai?.chat) {
+              const model = args?.modelId || AI.state?.modelId || 'gpt-5-mini';
+              const r = await root.puter.ai.chat({ model, messages: [{ role: 'user', content: String(args?.hedef || 'Analiz et') }] });
+              return { ok: true, source: 'puter.ai', text: r?.message?.content || r?.text || String(r || '') };
+            }
+          } catch (e2) {
+            log('Uyarı', `puter fallback hata: ${e2?.message || e2}`);
+          }
+          return { ok: true, source: 'simulated', text: 'AI fallback (simülasyon) sonucu.' };
+        }
+      };
+    } catch (e) { log('Uyarı', 'AI fallback kurulamadı', e); }
+  }
+
+  function wireRetryFlow() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      if (document.getElementById('enhRetry')) return;
+      const actions = document.getElementById('enhActions');
+      if (!actions) return;
+      const btn = document.createElement('button');
+      btn.id = 'enhRetry';
+      btn.className = 'btn';
+      btn.type = 'button';
+      btn.textContent = 'Yeniden Dene';
+      actions.appendChild(btn);
+      once(btn, 'click', async () => {
+        try { if (root.__PatpatUI?.UI?.state?.activeTab !== 'rules') { return log('Uyarı', 'Regex paneli PUTER_HARİTASI sekmesinde açılır.'); } } catch {}
+        try { await chrome.runtime.sendMessage({ type: 'ui_sync_now' }); } catch {}
+      });
+    } catch (e) { log('Uyarı', 'retry akışı eklenemedi', e); }
+  }
+
+  async function runtimePermissionCheck() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      const man = chrome?.runtime?.getManifest?.() || {};
+      const required = ['storage', 'tabs', 'scripting'];
+      const have = new Set([...(man.permissions || [])]);
+      const miss = required.filter((p) => !have.has(p));
+      if (miss.length) {
+        const el = document.getElementById('enhProgressMeta');
+        if (el) el.textContent = `${el.textContent} • Uyarı: eksik izin ${miss.join(', ')}`;
+      }
+    } catch {}
+  }
+
+
+  function wireRegexRulePanel() {
+    if (!Ctx.isSidepanel) return;
+    try {
+      if (document.getElementById('enhRegexPanelBtn')) return;
+      const actions = document.getElementById('enhActions');
+      if (!actions) return;
+
+      const btn = document.createElement('button');
+      btn.id = 'enhRegexPanelBtn';
+      btn.className = 'btn';
+      btn.type = 'button';
+      btn.textContent = 'Regex Kural Paneli';
+      actions.appendChild(btn);
+
+      once(btn, 'click', async () => {
+        try { if (root.__PatpatUI?.UI?.state?.activeTab !== 'rules') { return log('Uyarı', 'Regex paneli PUTER_HARİTASI sekmesinde açılır.'); } } catch {}
+        const old = document.getElementById('enhRegexPanel');
+        if (old) { old.remove(); return; }
+
+        const panel = document.createElement('div');
+        panel.id = 'enhRegexPanel';
+        panel.style.cssText = 'margin-top:8px;border:1px solid rgba(255,255,255,.16);padding:10px;border-radius:12px;background:rgba(10,14,24,.6)';
+        panel.innerHTML = `
+          <div style="font-weight:600;margin-bottom:8px">PUTER_HARİTASI • REGEX BLOĞU</div>
+          <input id="rxUrl" placeholder="URL Tanımı (örn: *anabayiniz.com/orders*)" style="width:100%;margin:4px 0;padding:8px;border-radius:8px" />
+          <input id="rxTarget" placeholder="Kural Amacı (örn: Kalan Miktar)" style="width:100%;margin:4px 0;padding:8px;border-radius:8px" />
+          <input id="rxExpr" placeholder="Regex" style="width:100%;margin:4px 0;padding:8px;border-radius:8px" />
+          <textarea id="rxTestText" placeholder="Test metni" style="width:100%;min-height:86px;margin:4px 0;padding:8px;border-radius:8px"></textarea>
+          <div id="rxPreview" style="font-size:12px;opacity:.9;margin:6px 0">Önizleme: —</div><div id="rxTableWrap" style="max-height:160px;overflow:auto;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px;font-size:11px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button id="rxTestBtn" class="btn" type="button">Regex Test</button>
+            <button id="rxSaveBtn" class="btn primary" type="button">Onayla/Kaydet</button>
+          </div>`;
+        actions.appendChild(panel);
+
+        const test = panel.querySelector('#rxTestBtn');
+        const save = panel.querySelector('#rxSaveBtn');
+        const rxExpr = panel.querySelector('#rxExpr');
+        const rxText = panel.querySelector('#rxTestText');
+        const rxPrev = panel.querySelector('#rxPreview');
+        const rxTableWrap = panel.querySelector('#rxTableWrap');
+
+        const renderRules = async () => {
+          try {
+            const key = 'patpat_dynamic_regex_rules';
+            const cur = (await chrome.storage.local.get(key))[key] || [];
+            const head = ['URL_DESENİ','HEDEF_ALAN','REGEX','TEST_METNİ','TEST_ÇIKTI','DURUM'];
+            const rows = cur.slice(-20).map((r) => [r.urlPattern||'', r.targetField||'', r.regex||'', (r.sample||'').slice(0,40), '-', 'KAYITLI']);
+            const thead = `<tr>${head.map(h=>`<th style=\"text-align:left;border-bottom:1px solid rgba(255,255,255,.2);padding:4px\">${h}</th>`).join('')}</tr>`;
+            const tbody = rows.map(c => `<tr>${c.map(v=>`<td style=\"padding:4px;border-bottom:1px solid rgba(255,255,255,.08)\">${String(v)}</td>`).join('')}</tr>`).join('');
+            rxTableWrap.innerHTML = `<table style=\"width:100%;border-collapse:collapse\"><thead>${thead}</thead><tbody>${tbody || '<tr><td colspan=6 style=\"padding:6px\">Henüz kural yok.</td></tr>'}</tbody></table>`;
+          } catch {}
+        };
+        renderRules();
+
+        once(test, 'click', () => {
+          try {
+            const re = new RegExp(String(rxExpr.value || ''), 'gm');
+            const txt = String(rxText.value || '');
+            const m = Array.from(txt.matchAll(re)).slice(0, 20).map((x) => x[1] || x[0]);
+            rxPrev.textContent = `Önizleme: ${m.length ? m.join(' | ') : 'eşleşme yok'}`;
+          } catch (e) {
+            rxPrev.textContent = `Önizleme: regex hatası (${e?.message || e})`;
+          }
+        });
+
+        once(save, 'click', async () => {
+          try {
+            const obj = {
+              id: `rx_${Date.now()}`,
+              urlPattern: String(panel.querySelector('#rxUrl').value || '').trim(),
+              targetField: String(panel.querySelector('#rxTarget').value || '').trim(),
+              regex: String(rxExpr.value || '').trim(),
+              sample: String(rxText.value || '').slice(0, 5000),
+              updatedAt: Date.now()
+            };
+            const key = 'patpat_dynamic_regex_rules';
+            const cur = (await chrome.storage.local.get(key))[key] || [];
+            cur.push(obj);
+            await chrome.storage.local.set({ [key]: cur });
+            rxPrev.textContent = 'Önizleme: kural kaydedildi.';
+            renderRules();
+          } catch (e) {
+            rxPrev.textContent = `Önizleme: kaydetme hatası (${e?.message || e})`;
+          }
+        });
+      });
+    } catch (e) { log('Uyarı', 'regex panel kurulamadı', e); }
+  }
+
+  function bootstrap() {
+    try {
+      if (!Ctx.isSidepanel && !Ctx.isPopup && !Ctx.isOptions && !Ctx.isContent) return;
+      if (!runtimeId) return;
+
+      if (Ctx.isSidepanel) {
+        createUiShellIfMissing();
+        ensureExportMenu();
+        wireExportButtons();
+        wireStopAndSheets();
+        wireBroadcastListener();
+        wireDynamicFilter();
+        wireStatusRefresh();
+        wireRetryFlow();
+        wireRegexRulePanel();
+        runtimePermissionCheck();
+      }
+
+      wireAIFallback();
+    } catch (e) {
+      log('Hata', 'bundle enhancer bootstrap hatası', e);
+    }
+  }
+
+  bootstrap();
+})();
+/* ===== END bundle-enhancer.js ===== */
