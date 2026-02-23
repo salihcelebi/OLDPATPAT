@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Patpat Agent</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#e7ecff; --muted:#a9b4e6; --line:rgba(255,255,255,.12);
+      --brand:#6ea8ff; --brand2:#9b7bff; --shadow:0 8px 24px rgba(0,0,0,.35);
+      --r:16px; --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    body{ margin:0; font-family:var(--sans); color:var(--text); background:var(--bg); }
+    .wrap{
+      width:320px; padding:14px;
+      background: radial-gradient(600px 260px at 10% 0%, rgba(110,168,255,.22), transparent 55%),
+                  radial-gradient(520px 260px at 90% 10%, rgba(155,123,255,.18), transparent 55%),
+                  var(--bg);
+    }
+    .top{ display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+    .logo{ width:34px; height:34px; border-radius:12px; background:linear-gradient(135deg,var(--brand),var(--brand2)); box-shadow:var(--shadow); }
+    h1{ margin:0; font-size:14px; line-height:1.1; }
+    .sub{ margin-top:4px; font-size:12px; color:var(--muted); line-height:1.35; }
+    .btn{
+      width:100%; height:42px; border-radius:14px; border:1px solid var(--line);
+      background:rgba(15,22,48,.65); color:var(--text); cursor:pointer; font-size:13px;
+      margin-top:10px;
+    }
+    .btn.primary{ border-color: rgba(110,168,255,.40); background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(155,123,255,.16)); }
+    .hint{ margin-top:10px; font-size:12px; color:var(--muted); line-height:1.35; }
+  </style>
+</head>
+<body data-page="popup">
+  <div class="wrap">
+    <div class="top">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Patpat Agent</h1>
+        <div class="sub">Popup yalnızca yan panel başlatıcısıdır.</div>
+      </div>
+    </div>
+
+    <button class="btn primary" id="btnOpenPanel" type="button">Yan Paneli Aç</button>
+    <button class="btn" id="btnOpenOptions" type="button">Ayarları Aç</button>
+
+    <div class="hint" id="msg">
+      İpucu: Tüm işlemler yan panelde sekmeler altında yönetilir.
+    </div>
+  </div>
+
+  <script src="bundle.js"></script>
+</body>
+</html>

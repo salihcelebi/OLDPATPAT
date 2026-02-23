@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Patpat Agent • Ayarlar</title>
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#0f1630; --card:#121c3a;
+      --text:#e7ecff; --muted:#a9b4e6; --muted2:#7f8ac2;
+      --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.14);
+      --good:#3ddc97; --warn:#ffd166; --bad:#ff5c77;
+      --brand:#6ea8ff; --brand2:#9b7bff;
+      --shadow:0 8px 24px rgba(0,0,0,.35);
+      --r:16px; --r2:22px; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; min-height:100vh; font-family:var(--sans); color:var(--text);
+      background: radial-gradient(900px 500px at 10% 0%, rgba(110,168,255,.22), transparent 55%),
+                  radial-gradient(700px 480px at 90% 10%, rgba(155,123,255,.18), transparent 55%),
+                  var(--bg);
+    }
+    .wrap{max-width:980px; margin:0 auto; padding:18px 14px 26px;}
+    .top{
+      display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;
+      padding:14px; border:1px solid var(--line); border-radius:var(--r2); background:rgba(15,22,48,.55); box-shadow:var(--shadow);
+    }
+    h1{margin:0; font-size:16px}
+    .sub{margin-top:6px; color:var(--muted2); font-size:12px; line-height:1.35}
+    .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+    .btn{
+      height:38px; border-radius:14px; border:1px solid var(--line); background:rgba(15,22,48,.65);
+      color:var(--text); padding:0 12px; cursor:pointer; font-size:13px;
+    }
+    .btn.primary{border-color:rgba(110,168,255,.40); background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(155,123,255,.16));}
+    .btn.danger{border-color:rgba(255,92,119,.40); background:linear-gradient(135deg, rgba(255,92,119,.16), rgba(255,92,119,.06));}
+    .grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;}
+    .card{
+      border:1px solid var(--line); border-radius:var(--r2); background:rgba(15,22,48,.55); box-shadow:var(--shadow);
+      padding:14px;
+    }
+    .card h2{margin:0 0 6px; font-size:14px}
+    .card p{margin:0 0 12px; color:var(--muted2); font-size:12px; line-height:1.35}
+    label{display:block; font-size:12px; color:var(--muted); margin:10px 0 6px}
+    input, select, textarea{
+      width:100%; border-radius:14px; border:1px solid var(--line); background:rgba(18,28,58,.40);
+      color:var(--text); padding:10px 10px; font-size:13px; outline:none;
+    }
+    textarea{min-height:88px; resize:vertical; font-family:var(--mono); font-size:12px; line-height:1.35;}
+    .hint{margin-top:8px; color:var(--muted2); font-size:12px; line-height:1.35}
+    .pill{display:inline-flex; gap:8px; align-items:center; padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:rgba(18,28,58,.35); font-size:12px; color:var(--muted)}
+    .dot{width:8px; height:8px; border-radius:999px; background:var(--warn); box-shadow:0 0 0 3px rgba(255,209,102,.15)}
+    .dot.good{background:var(--good); box-shadow:0 0 0 3px rgba(61,220,151,.15)}
+    .dot.bad{background:var(--bad); box-shadow:0 0 0 3px rgba(255,92,119,.15)}
+    .full{grid-column:1 / -1}
+    @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+    .toast{
+      position:fixed; left:14px; bottom:14px; max-width:calc(100% - 28px);
+      padding:10px 12px; border-radius:14px; border:1px solid var(--line);
+      background:rgba(15,22,48,.92); box-shadow:var(--shadow);
+      color:var(--text); font-size:12px; display:none;
+    }
+  </style>
+</head>
+<body data-page="options">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Patpat Agent • Ayarlar</h1>
+        <div class="sub">Tüm metinler Türkçe. Minimum izin yaklaşımı korunur.</div>
+        <div class="sub" id="statusLine">Durum: —</div>
+      </div>
+      <div class="row">
+        <span class="pill"><span class="dot" id="dotSync"></span><span id="syncLabel">Senkron: —</span></span>
+        <button class="btn" id="btnOpenPanel" type="button">Yan Paneli Aç</button>
+        <button class="btn primary" id="btnSaveAll" type="button">Kaydet</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Kilitli Bağlantılar</h2>
+        <p>Bu alanlar kritik olduğu için dikkatle yönetilir.</p>
+
+        <label for="sheetsId">Google Sheets Kimliği</label>
+        <input id="sheetsId" type="text" disabled />
+
+        <label for="webhookUrl">Webhook Adresi</label>
+        <input id="webhookUrl" type="text" disabled />
+
+        <div class="hint">
+          Not: Webhook adresi mutlaka <b>/exec</b> ile bitmelidir.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Çalışma Modu</h2>
+        <p>Tarama ve senkron davranışlarını buradan ayarlarsın.</p>
+
+        <label for="writeMode">Yazma Modu</label>
+        <select id="writeMode">
+          <option value="apps_script">Apps Script (Google Sheets)</option>
+          <option value="csv">CSV (Yerel Dışa Aktar)</option>
+        </select>
+
+        <label for="maxPages">Rakip Tarama: En Fazla Sayfa</label>
+        <input id="maxPages" type="number" min="1" max="50" />
+
+        <label for="timeoutSec">Zaman Aşımı (saniye)</label>
+        <input id="timeoutSec" type="number" min="5" max="120" />
+
+        <label for="retryCount">Yeniden Deneme Sayısı</label>
+        <input id="retryCount" type="number" min="0" max="10" />
+
+        <label for="backoffEnabled">Geri Bekleme (Eksponansiyel)</label>
+        <select id="backoffEnabled">
+          <option value="on">Açık</option>
+          <option value="off">Kapalı</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h2>Hata Ayıklama</h2>
+        <p>Hata toleransı ve kayıt davranışları.</p>
+
+        <label for="verboseDebug">Detaylı Kayıt</label>
+        <select id="verboseDebug">
+          <option value="off">Kapalı</option>
+          <option value="on">Açık</option>
+        </select>
+
+        <label for="safeMode">Güvenli Mod</label>
+        <select id="safeMode">
+          <option value="off">Kapalı</option>
+          <option value="on">Açık (sadece metin taraması)</option>
+        </select>
+
+        <label for="dryRun">Önizleme Modu</label>
+        <select id="dryRun">
+          <option value="off">Kapalı</option>
+          <option value="on">Açık (gönderme yok)</option>
+        </select>
+
+        <div class="hint">
+          Güvenli mod, arayüz değişikliklerinde kurtarıcı olabilir.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Puter AI</h2>
+        <p>Model seçimi ve AI davranış kuralları.</p>
+
+        <label for="aiModel">Varsayılan Model</label>
+        <select id="aiModel">
+          <option value="">Model seçmeden AI kullanılamaz</option>
+          <optgroup label="GPT (OpenAI)">
+            <option value="gpt-5.2">gpt-5.2</option>
+            <option value="gpt-5.1">gpt-5.1</option>
+            <option value="gpt-5">gpt-5</option>
+            <option value="gpt-5-mini">gpt-5-mini</option>
+            <option value="gpt-5-nano">gpt-5-nano</option>
+          </optgroup>
+          <optgroup label="Gemini (Google)">
+            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+            <option value="gemini-3-pro-preview">gemini-3-pro-preview</option>
+            <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+          </optgroup>
+          <optgroup label="Claude (Anthropic)">
+            <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
+            <option value="claude-opus-4-6">claude-opus-4-6</option>
+            <option value="claude-opus-4-5">claude-opus-4-5</option>
+            <option value="claude-sonnet-4-5">claude-sonnet-4-5</option>
+            <option value="claude-haiku-4-5">claude-haiku-4-5</option>
+          </optgroup>
+        </select>
+
+        <label for="aiAutoSuggest">Otomatik Öneri</label>
+        <select id="aiAutoSuggest">
+          <option value="off">Kapalı</option>
+          <option value="on">Açık</option>
+        </select>
+
+        <label for="aiMaskPII">PII Maskeleme</label>
+        <select id="aiMaskPII">
+          <option value="on">Açık</option>
+          <option value="off">Kapalı</option>
+        </select>
+
+        <label for="aiInjectionGuard">Talimat Saptırma Koruması</label>
+        <select id="aiInjectionGuard">
+          <option value="on">Açık</option>
+          <option value="off">Kapalı</option>
+        </select>
+
+        <div class="hint">
+          AI yalnızca öneri üretir. Uygulama için her zaman onay gerekir.
+        </div>
+      </div>
+
+      <div class="card full">
+        <h2>Dışa Aktar / İçe Aktar</h2>
+        <p>Kurallar, ayarlar ve çalışma alanı verilerini yedekle.</p>
+
+        <div class="row">
+          <button class="btn" id="btnExport" type="button">Dışa Aktar (JSON)</button>
+          <button class="btn" id="btnImport" type="button">İçe Aktar (JSON)</button>
+          <button class="btn danger" id="btnReset" type="button">Varsayılanlara Dön</button>
+        </div>
+
+        <label for="importNotes">Notlar (isteğe bağlı)</label>
+        <textarea id="importNotes" placeholder="Örn: Bu yedek, yeni kurallar ve ayarları içerir."></textarea>
+
+        <div class="hint">
+          İçe aktar, mevcut verilerin üstüne yazabilir. İşlem öncesi onay istenir.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="bundle.js"></script>
+</body>
+</html>
