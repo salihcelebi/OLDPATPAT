@@ -780,21 +780,24 @@
           <div class="cards">
             <div class="card">
               <h3>Rakip Tarama</h3>
-              <p>Platform, hizmet ve adet aralığı seçip gerçek sayfadan tarama başlat.</p>
+              <p>Platform, hizmet ve sayfa sayısı seçip gerçek sayfadan tarama başlat.</p>
+              <div class="hint">Not: Platform ve hizmet seçimi esas alınır; adet kutuları boş bırakılabilir.</div>
               <div class="row">
                 <select id="selPlatform">
                   <option value="">Platform seç</option>
+                  <option value="hepsi">hepsi</option>
                   <option value="tiktok">tiktok</option>
                   <option value="instagram">instagram</option>
                   <option value="youtube">youtube</option>
                   <option value="twitter">twitter</option>
-                  <option value="twitch">twitch</option>
                 </select>
                 <select id="selService" disabled>
                   <option value="">Önce platform seç</option>
+                  <option value="hepsi">hepsi</option>
                 </select>
-                <input id="inpQtyMin" type="number" min="0" step="1" placeholder="Min adet" value="1000" />
-                <input id="inpQtyMax" type="number" min="0" step="1" placeholder="Max adet" value="50000" />
+                <input id="inpQtyMin" type="text" placeholder="Min adet (opsiyonel)" value="" />
+                <input id="inpQtyMax" type="text" placeholder="Max adet (opsiyonel)" value="" />
+                <input id="inpRakipPageCount" type="number" min="1" max="50" value="1" placeholder="Sayfa sayısı" />
                 <button class="btn primary" id="btnRakipStart" type="button">Taramayı Başlat</button>
                 <button class="btn" id="btnRakipStop" type="button">Durdur</button>
                 <button class="btn" id="btnRakipClear" type="button">Temizle</button>
