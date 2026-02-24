@@ -755,18 +755,18 @@
         btnClear: byId('btnClear'),
         btnStop: byId('btnStop'),
         // Hızlı işlemler (Sipariş)
-        btnScanHesap: byId('btnScanHesap'),
-        btnScanSmm: byId('btnScanSmm'),
-        btnDryRun: byId('btnDryRun'),
-        btnSyncNow: byId('btnSyncNow'),
+        btnScanHesap: byIdAny('btnScanHesap', 'btnSiparisStart'),
+        btnScanSmm: byIdAny('btnScanSmm', 'btnSmmStart'),
+        btnDryRun: byIdAny('btnDryRun'),
+        btnSyncNow: byIdAny('btnSyncNow'),
 
         // Rakip/pazar
-        btnMarketStart: byId('btnMarketStart'),
-        btnMarketOnePage: byId('btnMarketOnePage'),
-        btnMarketRegexTest: byId('btnMarketRegexTest'),
-        btnMarketCopyMd: byId('btnMarketCopyMd'),
-        marketPlatformSelect: byId('marketPlatformSelect'),
-        marketMaxPages: byId('marketMaxPages'),
+        btnMarketStart: byIdAny('btnMarketStart', 'btnRakipStart'),
+        btnMarketOnePage: byIdAny('btnMarketOnePage'),
+        btnMarketRegexTest: byIdAny('btnMarketRegexTest', 'btnRakipRegexPanel'),
+        btnMarketCopyMd: byIdAny('btnMarketCopyMd', 'btnRakipCopyMd'),
+        marketPlatformSelect: byIdAny('marketPlatformSelect', 'selPlatform'),
+        marketMaxPages: byIdAny('marketMaxPages', 'inpRakipPageCount'),
 
         progressLabel: byId('progressLabel'),
         jobLabel: byId('jobLabel'),
@@ -2034,6 +2034,13 @@ function bindEvents() {
 
   // Yardımcı
   function byId(id) { return document.getElementById(id); }
+  function byIdAny(...ids) {
+    for (const id of ids) {
+      const el = byId(id);
+      if (el) return el;
+    }
+    return null;
+  }
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
   function escapeHtml(s) {
