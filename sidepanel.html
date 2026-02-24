@@ -646,9 +646,6 @@
 
   <!-- Bölüm C: Sekmeler -->
   <nav class="tabbar" aria-label="Sekmeler">
-    <button class="tab" data-tab="orders" aria-selected="true" type="button">Sipariş Yönetimi</button>
-    <button class="tab" data-tab="market" aria-selected="false" type="button">Rakip ve Pazar Analizi</button>
-    <button class="tab" data-tab="complaints" aria-selected="false" type="button">Müşteri Şikayet Yönetimi</button>
     <button class="tab" data-tab="rules" aria-selected="false" type="button">Kurallar ve Öğrenme Merkezi</button>
     <button class="tab" data-tab="reports" aria-selected="false" type="button">Raporlar ve Otomasyon</button>
     <button class="tab" data-tab="files" aria-selected="false" type="button">Chrome Eklenti Dosyaları</button>
@@ -661,9 +658,9 @@
     <section class="main" aria-label="Sekme içerikleri">
       <div class="mainheader">
         <div>
-          <h2 id="tabTitle">Sipariş Yönetimi</h2>
+          <h2 id="tabTitle">Sistem ve Entegrasyon</h2>
           <p id="tabDesc">
-            Siparişleri tara, standartlaştır, kuyruğa al ve güvenli senkronla.
+            Canlı durum, entegrasyon doğrulama, izin denetimi ve kurtarma merkezi.
           </p>
         </div>
         <div class="row">
@@ -674,185 +671,6 @@
       </div>
 
       <div class="mainbody">
-        <!-- Sekme: Sipariş -->
-        <section class="tabpanel" data-tabpanel="orders">
-          <div class="cards">
-            <div class="card">
-              <h3>Hesap Sattığım İlanlar Taraması</h3>
-              <p>Sadece hesap.com.tr/p/sattigim-ilanlar ve durum sayfalarını tarar.</p>
-              <div class="row">
-                <select id="selSiparisStatus">
-                  <option value="all">Tüm Durumlar</option>
-                  <option value="pending">pending</option>
-                  <option value="processing">processing</option>
-                  <option value="completed">completed</option>
-                  <option value="cancelled">cancelled</option>
-                  <option value="returnprocess">returnprocess</option>
-                </select>
-                <input id="inpSiparisMaxPage" type="number" min="1" max="50" value="5" placeholder="Max sayfa" />
-                <button class="btn primary" id="btnSiparisStart" type="button">Taramayı Başlat</button>
-                <button class="btn" id="btnSiparisStop" type="button">Durdur</button>
-                <button class="btn" id="btnSiparisClear" type="button">Temizle</button>
-                <button class="btn" id="btnSiparisCopyMd" type="button">MD Kopyala</button>
-                <button class="btn" id="btnSiparisExportJson" type="button">JSON Export</button>
-                <button class="btn" id="btnSiparisExportCsv" type="button">CSV Export</button>
-              </div>
-              <div class="hint" id="siparisStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div>
-            </div>
-
-            <div class="card">
-              <h3>Canlı Sipariş Tablosu</h3>
-              <p>Satırlar gerçek sayfadan geldikçe tabloya eklenir.</p>
-              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
-                <table id="tblSiparis" style="width:100%; border-collapse:collapse; min-width:950px;">
-                  <thead>
-                    <tr>
-                      <th>İlan Başlığı</th>
-                      <th>Sipariş No</th>
-                      <th>SMM ID</th>
-                      <th>Tarih</th>
-                      <th>Durum</th>
-                      <th>Tutar (TL)</th>
-                      <th>Kullanıcı</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tblSiparisBody"></tbody>
-                </table>
-              </div>
-              <div class="empty" id="ordersEmpty">Henüz sipariş verisi yok.</div>
-            </div>
-
-            <div class="card">
-              <h3>Anabayiniz Orders Taraması</h3>
-              <p>Sadece anabayiniz.com/orders akışını durum bazlı tarar.</p>
-              <div class="row">
-                <select id="selSmmStatus">
-                  <option value="all">Tüm Durumlar</option>
-                  <option value="pending">pending</option>
-                  <option value="completed">completed</option>
-                  <option value="inprogress">inprogress</option>
-                  <option value="canceled">canceled</option>
-                </select>
-                <input id="inpSmmMaxPage" type="number" min="1" max="50" value="5" placeholder="Max sayfa" />
-                <select id="selSmmTimeFilter">
-                  <option value="all">Tüm Zamanlar</option>
-                  <option value="1d">Son 1 Gün</option>
-                  <option value="7d">Son 1 Hafta</option>
-                  <option value="xd">X Gün</option>
-                </select>
-                <input id="inpSmmXDays" type="number" min="1" max="365" value="30" placeholder="X gün" />
-                <button class="btn primary" id="btnSmmStart" type="button">SMM Taramayı Başlat</button>
-                <button class="btn" id="btnSmmStop" type="button">Durdur</button>
-                <button class="btn" id="btnSmmClear" type="button">Temizle</button>
-                <button class="btn" id="btnSmmCopyMd" type="button">MD Kopyala</button>
-                <button class="btn" id="btnSmmExportJson" type="button">JSON Export</button>
-                <button class="btn" id="btnSmmExportCsv" type="button">CSV Export</button>
-              </div>
-              <div class="hint" id="smmStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div>
-            </div>
-
-            <div class="card">
-              <h3>Canlı SMM Tablosu</h3>
-              <p>Anabayiniz siparişleri satır satır eklenir.</p>
-              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
-                <table id="tblSmm" style="width:100%; border-collapse:collapse; min-width:1100px;">
-                  <thead>
-                    <tr>
-                      <th>Sipariş ID</th>
-                      <th>Tarih</th>
-                      <th>Sipariş Link</th>
-                      <th>Birim Fiyat</th>
-                      <th>Servis</th>
-                      <th>Durum</th>
-                      <th>Kalan</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tblSmmBody"></tbody>
-                </table>
-              </div>
-              <div class="empty" id="smmEmpty">Henüz SMM verisi yok.</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Sekme: Rakip -->
-        <section class="tabpanel" data-tabpanel="market" hidden>
-          <div class="cards">
-            <div class="card">
-              <h3>Rakip Tarama</h3>
-              <p>Platform, hizmet ve sayfa sayısı seçip gerçek sayfadan tarama başlat.</p>
-              <div class="hint">Not: Platform ve hizmet seçimi esas alınır; adet kutuları boş bırakılabilir.</div>
-              <div class="row">
-                <select id="selPlatform">
-                  <option value="">Platform seç</option>
-                  <option value="hepsi">hepsi</option>
-                  <option value="tiktok">tiktok</option>
-                  <option value="instagram">instagram</option>
-                  <option value="youtube">youtube</option>
-                  <option value="twitter">twitter</option>
-                </select>
-                <select id="selService" disabled>
-                  <option value="">Önce platform seç</option>
-                  <option value="hepsi">hepsi</option>
-                </select>
-                <input id="inpQtyMin" type="text" placeholder="Min adet (opsiyonel)" value="" />
-                <input id="inpQtyMax" type="text" placeholder="Max adet (opsiyonel)" value="" />
-                <input id="inpRakipPageCount" type="number" min="1" max="50" value="1" placeholder="Sayfa sayısı" />
-                <button class="btn primary" id="btnRakipStart" type="button">Taramayı Başlat</button>
-                <button class="btn" id="btnRakipStop" type="button">Durdur</button>
-                <button class="btn" id="btnRakipClear" type="button">Temizle</button>
-              </div>
-              <div class="row">
-                <button class="btn" id="btnPickService" type="button">Hizmet için DOM Seç</button>
-                <button class="btn" id="btnPickShop" type="button">Mağaza için DOM Seç</button>
-                <button class="btn" id="btnPickWarranty" type="button">Garanti için DOM Seç</button>
-                <button class="btn" id="btnPickSuccess" type="button">Başarılı İşlem için DOM Seç</button>
-                <button class="btn" id="btnPickPrice" type="button">Fiyat için DOM Seç</button>
-                <button class="btn" id="btnPickAdPower" type="button">Reklam Gücü için DOM Seç</button>
-                <button class="btn" id="btnPickCancel" type="button">Pick İptal</button>
-              </div>
-              <div class="row">
-                <select id="selRakipTemplate"></select>
-                <button class="btn" id="btnRakipTemplateUse" type="button">Aktif Şablon Yap</button>
-                <button class="btn danger" id="btnRakipTemplateDelete" type="button">Şablon Sil</button>
-              </div>
-              <div class="hint" id="rakipStats">Satır: 0 • Atılan (dedup): 0</div>
-              <div id="rakipTestPreviewWrap" class="hint">Test önizleme henüz yok.</div>
-            </div>
-
-            <div class="card">
-              <h3>Canlı Rakip Tablosu</h3>
-              <p>Satırlar geldikçe tabloya eklenir.</p>
-              <div style="overflow:auto; border:1px solid rgba(255,255,255,.12); border-radius:14px;">
-                <table id="tblRakip" style="width:100%; border-collapse:collapse; min-width:900px;">
-                  <thead>
-                    <tr>
-                      <th>Platform</th>
-                      <th>İlan Başlığı</th>
-                      <th>Hizmet</th>
-                      <th>Mağaza Adı</th>
-                      <th>Garanti</th>
-                      <th>Fiyat</th>
-                      <th>Reklam Gücü</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tblRakipBody"></tbody>
-                </table>
-              </div>
-              <div class="empty" id="marketEmpty">Henüz rakip verisi yok.</div>
-            </div>
-
-            <div class="card">
-              <h3>Kopyalama ve Export</h3>
-              <div class="row">
-                <button class="btn" id="btnRakipCopyMd" type="button">MD Kopyala</button>
-                <button class="btn" id="btnRakipExportJson" type="button">JSON Export</button>
-                <button class="btn" id="btnRakipExportCsv" type="button">CSV Export</button>
-                <button class="btn" id="btnRakipRegexPanel" type="button">Regex Oluştur</button>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <!-- Sekme: Sistem -->
         <section class="tabpanel" data-tabpanel="system" hidden>
@@ -896,58 +714,6 @@
                 <button class="btn danger" id="btnSystemStopAll" type="button">Tüm İşleri Durdur</button>
               </div>
               <div class="hint" id="systemModeSummary">Safe Mode: — • Debug: — • Dry Run: —</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Sekme: Şikayet -->
-        <section class="tabpanel" data-tabpanel="complaints" hidden>
-          <div class="cards">
-            <div class="card">
-              <h3>Müşteri Şikayet Yönetimi</h3>
-              <p>Akış: <b>Kanıtla → Açıkla → Kapat</b>. Sadece gerçek sayfadan DOM/regex ile kayıt üretir.</p>
-              <div class="row">
-                <input id="inpComplaintPages" type="number" min="1" max="50" value="5" placeholder="Sayfa sayısı" />
-                <label class="small" style="display:flex;align-items:center;gap:6px;">
-                  Hız
-                  <input id="rngComplaintSpeed" type="range" min="1" max="10" value="5" />
-                </label>
-                <button class="btn primary" id="btnComplaintScan" type="button">Şikayet Tara</button>
-                <button class="btn" id="btnComplaintStop" type="button">Durdur</button>
-              </div>
-              <div class="row">
-                <button class="btn primary" id="btnComplaintDraft" type="button">Yanıt Taslağı</button>
-                <button class="btn" id="btnComplaintSolution" type="button">Çözüm Öner</button>
-                <button class="btn" id="btnComplaintEscalate" type="button">Yöneticiye Eskale</button>
-                <button class="btn danger" id="btnComplaintClose" type="button">Şikayeti Kapat</button>
-              </div>
-              <div class="row">
-                <input id="inpComplaintSearch" type="text" placeholder="Ara: SMM ID, kullanıcı, durum" />
-              </div>
-              <div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div>
-            </div>
-
-            <div class="card">
-              <h3>3 Panel</h3>
-              <div style="display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px;">
-                <div>
-                  <div class="hint">Liste (SMM ID, müşteri, durum, SLA)</div>
-                  <div id="complaintsList" class="filelist" style="max-height:380px;overflow:auto;"></div>
-                </div>
-                <div>
-                  <div class="hint">Detay + Kanıt</div>
-                  <div id="complaintDetail" style="min-height:240px;"></div>
-                </div>
-                <div>
-                  <div class="hint">Eylem</div>
-                  <textarea id="complaintDraftText" class="code" style="min-height:220px;" placeholder="Yanıt taslağı burada oluşur."></textarea>
-                  <div class="row" style="margin-top:8px;">
-                    <button class="btn" id="btnComplaintCopyDraft" type="button">Taslağı Kopyala</button>
-                    <button class="btn" id="btnComplaintOpenMessage" type="button">Mesaj Sayfasına Git</button>
-                  </div>
-                  <div class="hint" id="complaintActionHint">Servis ID gizleme kontrolü: bekleniyor.</div>
-                </div>
-              </div>
             </div>
           </div>
         </section>
@@ -1194,10 +960,6 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="https://js.puter.com/v2/"></script>
-  <script src="rakip.js"></script>
-  <script src="siparis.js"></script>
-  <script src="smm.js"></script>
-  <script src="sikayet.js"></script>
   <script src="bundle.js"></script>
 </body>
 </html>
