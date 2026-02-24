@@ -2019,16 +2019,20 @@ function bindEvents() {
   function el(id) { return document.getElementById(id); }
 
   async function init() {
+    if (root.Patpat?.Sikayet) {
+      Shared.log('Bilgi', 'Sikayet modülü aktif, legacy complaint UI atlandı.');
+    } else {
     // Şikayet paneline liste/detay alanı ekle
     mountComplaintsUI();
     await refreshComplaints();
+    }
 
     // Kurallar paneline liste alanı ekle
     mountRulesUI();
     await refreshRules();
 
     // Butonlar
-    bindComplaintButtons();
+    if (!root.Patpat?.Sikayet) bindComplaintButtons();
     bindRuleButtons();
 
     // Depolama değişimlerinde yenile
