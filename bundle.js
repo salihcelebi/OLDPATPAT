@@ -719,7 +719,7 @@
   const UI = {
     els: {},
     state: {
-      activeTab: 'orders',
+      activeTab: 'system',
       online: 'bilinmiyor',
       site: '—',
       aiModel: '',
@@ -860,7 +860,7 @@
 
     renderTabs() {
       // Sekme başlık + açıklama
-      const info = TAB_MAP[this.state.activeTab] || TAB_MAP.orders;
+      const info = TAB_MAP[this.state.activeTab] || TAB_MAP.system;
       this.els.tabTitle.textContent = info.title;
       this.els.tabDesc.textContent = info.desc;
 
