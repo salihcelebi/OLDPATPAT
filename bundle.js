@@ -1688,6 +1688,13 @@ function bindEvents() {
       const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
       return `${d.getDate()} ${months[d.getMonth()]}`;
     }
+
+    function bindClickAny(ids, key, handler) {
+      for (const id of ids) {
+        const el = byId(id);
+        bindOnce(el, 'click', handler, `${key}_${id}`);
+      }
+    }
     // Sekmeler
     document.querySelectorAll('.tab').forEach((btn) => {
       bindOnce(btn, 'click', () => safeTry('Sekme değişimi', () => {
@@ -1724,13 +1731,13 @@ function bindEvents() {
     }), 'clear');
 
     // Yardım
-    UI.els.btnHelp.addEventListener('click', () => safeTry('Yardım', () => {
+    bindOnce(UI.els.btnHelp, 'click', () => safeTry('Yardım', () => {
       UI.toast('İpucu: Sekme seç, ana butonlarla işlemi başlat.');
       UI.log('Bilgi', 'Yardım gösterildi.');
-    }));
+    }), 'help');
 
     // Sipariş: Tarama + Senkron
-    if (UI.els.btnScanHesap) UI.els.btnScanHesap.addEventListener('click', () => safeTry('Hesap tarama', async () => {
+    bindClickAny(['btnScanHesap', 'btnSiparisStart'], 'scan-hesap', () => safeTry('Hesap tarama', async () => {
       const maxPages = askScanNumber('Kaç sayfa taransın?', 3, 1, 50);
       if (maxPages == null) return;
       const lookbackDays = askScanNumber('Kaç güne bakılsın?', 5, 1, 365);
@@ -1746,19 +1753,19 @@ function bindEvents() {
       UI.toast('Hesap taraması başlatıldı.');
     }));
 
-    if (UI.els.btnScanSmm) UI.els.btnScanSmm.addEventListener('click', () => safeTry('SMM tarama', async () => {
+    bindClickAny(['btnScanSmm', 'btnSmmStart'], 'scan-smm', () => safeTry('SMM tarama', async () => {
       UI.log('Bilgi', 'SMM panel taraması başlatılıyor...');
       await sendBg({ type: 'ui_start_scan_smm' });
       UI.toast('SMM taraması başlatıldı.');
     }));
 
-    if (UI.els.btnDryRun) UI.els.btnDryRun.addEventListener('click', () => safeTry('Önizleme', async () => {
+    bindClickAny(['btnDryRun'], 'scan-dryrun', () => safeTry('Önizleme', async () => {
       UI.log('Bilgi', 'Önizleme (dry-run) başlatılıyor...');
       await sendBg({ type: 'ui_start_scan_hesap', options: { dryRun: true } });
       UI.toast('Önizleme başlatıldı (gönderme yok).');
     }));
 
-    if (UI.els.btnSyncNow) UI.els.btnSyncNow.addEventListener('click', () => safeTry('Senkron', async () => {
+    bindClickAny(['btnSyncNow'], 'sync-now', () => safeTry('Senkron', async () => {
       UI.log('Bilgi', 'Senkron başlatılıyor...');
       await sendBg({ type: 'ui_sync_now' });
       UI.toast('Senkron başlatıldı.');
@@ -1773,13 +1780,13 @@ function bindEvents() {
       return Math.max(1, Math.min(50, n));
     }
 
-    if (UI.els.btnMarketStart) bindOnce(UI.els.btnMarketStart, 'click', () => safeTry('Rakip tarama', async () => {
+    bindClickAny(['btnMarketStart', 'btnRakipStart'], 'market-start', () => safeTry('Rakip tarama', async () => {
       const platform = getMarketPlatform();
       const maxPages = getMarketMaxPages();
       UI.log('Bilgi', `Rakip taraması başlatılıyor: ${platform}`);
       await sendBg({ type: 'ui_market_start', platform, maxPages });
       UI.toast(`Rakip taraması başladı: ${platform}`);
-    }), 'market-start');
+    }));
 
     if (UI.els.btnMarketOnePage) bindOnce(UI.els.btnMarketOnePage, 'click', () => safeTry('Tek sayfa', async () => {
       const platform = getMarketPlatform();
