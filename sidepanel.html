@@ -904,49 +904,21 @@
         <section class="tabpanel" data-tabpanel="complaints" hidden>
           <div class="cards">
             <div class="card">
-              <h3>Müşteri Şikayet Yönetimi</h3>
-              <p>Akış: <b>Kanıtla → Açıkla → Kapat</b>. Sadece gerçek sayfadan DOM/regex ile kayıt üretir.</p>
-              <div class="row">
-                <input id="inpComplaintPages" type="number" min="1" max="50" value="5" placeholder="Sayfa sayısı" />
-                <label class="small" style="display:flex;align-items:center;gap:6px;">
-                  Hız
-                  <input id="rngComplaintSpeed" type="range" min="1" max="10" value="5" />
-                </label>
-                <button class="btn primary" id="btnComplaintScan" type="button">Şikayet Tara</button>
-                <button class="btn" id="btnComplaintStop" type="button">Durdur</button>
-              </div>
+              <h3>Şikayet Kutusu</h3>
+              <p>Şikayetleri sınıflandır, SLA takip et ve yanıt taslağı oluştur.</p>
               <div class="row">
                 <button class="btn primary" id="btnComplaintDraft" type="button">Yanıt Taslağı</button>
                 <button class="btn" id="btnComplaintSolution" type="button">Çözüm Öner</button>
                 <button class="btn" id="btnComplaintEscalate" type="button">Yöneticiye Eskale</button>
                 <button class="btn danger" id="btnComplaintClose" type="button">Şikayeti Kapat</button>
               </div>
-              <div class="row">
-                <input id="inpComplaintSearch" type="text" placeholder="Ara: SMM ID, kullanıcı, durum" />
-              </div>
-              <div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div>
+              <div class="hint">Not: Kapatma işlemi her zaman kullanıcı onayı ister.</div>
             </div>
 
             <div class="card">
-              <h3>3 Panel</h3>
-              <div style="display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px;">
-                <div>
-                  <div class="hint">Liste (SMM ID, müşteri, durum, SLA)</div>
-                  <div id="complaintsList" class="filelist" style="max-height:380px;overflow:auto;"></div>
-                </div>
-                <div>
-                  <div class="hint">Detay + Kanıt</div>
-                  <div id="complaintDetail" style="min-height:240px;"></div>
-                </div>
-                <div>
-                  <div class="hint">Eylem</div>
-                  <textarea id="complaintDraftText" class="code" style="min-height:220px;" placeholder="Yanıt taslağı burada oluşur."></textarea>
-                  <div class="row" style="margin-top:8px;">
-                    <button class="btn" id="btnComplaintCopyDraft" type="button">Taslağı Kopyala</button>
-                    <button class="btn" id="btnComplaintOpenMessage" type="button">Mesaj Sayfasına Git</button>
-                  </div>
-                  <div class="hint" id="complaintActionHint">Servis ID gizleme kontrolü: bekleniyor.</div>
-                </div>
+              <h3>Boş Durum</h3>
+              <div class="empty">
+                Henüz şikayet kaydı yok. Yeni kayıt gelince burada görünür.
               </div>
             </div>
           </div>
@@ -1197,7 +1169,6 @@
   <script src="rakip.js"></script>
   <script src="siparis.js"></script>
   <script src="smm.js"></script>
-  <script src="sikayet.js"></script>
   <script src="bundle.js"></script>
 </body>
 </html>

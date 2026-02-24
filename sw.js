@@ -15,7 +15,25 @@ const LOCKED_DEFAULTS = Object.freeze({
     "https://script.google.com/macros/s/AKfycbxgsP85wiwCJ_9-p9mpJymE1euSfsQAPiZWiCTURCrucWRtWOKqT7n14NXZs_i1-Qs/exec"
 });
 
-const TARGETS = Object.freeze({});
+const TARGETS = Object.freeze({
+  hesapOrders: [
+    "https://hesap.com.tr/p/sattigim-ilanlar",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=pending",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=processing",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=completed",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=cancelled",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=returnprocess",
+    "https://hesap.com.tr/p/sattigim-ilanlar?status=problematic"
+  ],
+  smmOrders: [
+    "https://anabayiniz.com/orders",
+    "https://anabayiniz.com/orders/pending",
+    "https://anabayiniz.com/orders/completed",
+    "https://anabayiniz.com/orders/inprogress",
+    "https://anabayiniz.com/orders/canceled"
+  ],
+  marketPlatforms: ["tiktok", "instagram", "youtube", "twitter", "twitch", "threads"]
+});
 
 const STORAGE_KEYS = Object.freeze({
   settings: "patpat_settings",
@@ -220,9 +238,32 @@ if (msg?.type === "crawl_progress") {
     return true;
   }
 
+  if (msg?.type === "ui_start_scan_hesap") {
+    const jobId = createJob("hesap_scan");
+    runScanJob(jobId, "hesap_orders", TARGETS.hesapOrders, msg.options);
+    sendResponse?.({ ok: true, jobId });
+    return true;
+  }
+
+  if (msg?.type === "ui_start_scan_smm") {
+    const jobId = createJob("smm_scan");
+    runScanJob(jobId, "smm_orders", TARGETS.smmOrders, msg.options);
+    sendResponse?.({ ok: true, jobId });
+    return true;
+  }
+
   if (msg?.type === "ui_sync_now") {
     const jobId = createJob("sync_now");
     flushOfflineQueue(jobId);
+    sendResponse?.({ ok: true, jobId });
+    return true;
+  }
+
+  if (msg?.type === "ui_market_start") {
+    const platform = String(msg.platform || "instagram");
+    const maxPages = Number(msg.maxPages || 3);
+    const jobId = createJob("market_scan");
+    runMarketJob(jobId, platform, maxPages);
     sendResponse?.({ ok: true, jobId });
     return true;
   }
@@ -338,7 +379,119 @@ async function ensureContentScripts(tabId) {
 // ──────────────────────────────────────────────────────────────
 // Bölüm: Tarama Job’ları
 // ──────────────────────────────────────────────────────────────
+async function runScanJob(jobId, mode, urls, uiOptions = {}) {
+  safeLog("Bilgi", `Job başladı: ${mode}`);
+  broadcastProgress({ jobName: mode, progress: 0, step: "Başlatıldı", queue: await queueCount() });
 
+  for (let i = 0; i < urls.length; i++) {
+    if (isCancelled(jobId)) break;
+
+    const url = urls[i];
+    const pct = Math.round(((i) / urls.length) * 100);
+    broadcastProgress({
+      jobName: mode,
+      progress: pct,
+      step: `Sayfa açılıyor (${i + 1}/${urls.length})`,
+      queue: await queueCount()
+    });
+
+    let tabId = null;
+    try {
+      tabId = await openWorkerTab(jobId, url);
+
+      broadcastProgress({
+        jobName: mode,
+        progress: pct,
+        step: "Tarama komutu gönderiliyor",
+        queue: await queueCount()
+      });
+
+      // content script’e komut
+      await ensureContentScripts(tabId);
+      await sendMessageWithRetry(tabId, {
+        type: "crawl",
+        mode,
+        url,
+        options: {
+          // UI'dan gelen opsiyonlar (dryRun vb.)
+          safeMode: Boolean(uiOptions && uiOptions.safeMode),
+          dryRun: Boolean(uiOptions && uiOptions.dryRun)
+        }
+      });
+
+      safeLog("Bilgi", `Tarama komutu gönderildi: ${url}`);
+    } catch (e) {
+      safeLog("Hata", `Tarama akışı hatası: ${url} • ${formatErr(e)}`);
+    } finally {
+      // Worker tab kapatma (kilitli kural: active:false açılır; iş bitince kapat)
+      if (tabId && !isCancelled(jobId)) {
+        try { await chrome.tabs.remove(tabId); } catch {}
+      }
+    }
+  }
+
+  broadcastProgress({
+    jobName: mode,
+    progress: 100,
+    step: isCancelled(jobId) ? "İptal edildi" : "Tamamlandı",
+    queue: await queueCount()
+  });
+
+  safeLog("Bilgi", `Job bitti: ${mode}`);
+  JOBS.delete(jobId);
+}
+
+async function runMarketJob(jobId, platform, maxPages) {
+  const mode = "market_scan";
+  const p = TARGETS.marketPlatforms.includes(platform) ? platform : "instagram";
+  const pages = Math.max(1, Math.min(50, Number(maxPages || 3)));
+
+  safeLog("Bilgi", `Job başladı: market (${p})`);
+  broadcastProgress({ jobName: mode, progress: 0, step: "Başlatıldı", queue: await queueCount() });
+
+  for (let page = 1; page <= pages; page++) {
+    if (isCancelled(jobId)) break;
+
+    const url = `https://hesap.com.tr/ilanlar/${p}?page=${page}`;
+    const pct = Math.round(((page - 1) / pages) * 100);
+
+    broadcastProgress({
+      jobName: mode,
+      progress: pct,
+      step: `Sayfa açılıyor (page=${page}/${pages})`,
+      queue: await queueCount()
+    });
+
+    let tabId = null;
+    try {
+      tabId = await openWorkerTab(jobId, url);
+      await ensureContentScripts(tabId);
+      await sendMessageWithRetry(tabId, {
+        type: "crawl",
+        mode,
+        url,
+        options: { platform: p, page }
+      });
+      safeLog("Bilgi", `Rakip tarama komutu gönderildi: ${url}`);
+    } catch (e) {
+      safeLog("Hata", `Rakip tarama hatası: ${url} • ${formatErr(e)}`);
+    } finally {
+      if (tabId && !isCancelled(jobId)) {
+        try { await chrome.tabs.remove(tabId); } catch {}
+      }
+    }
+  }
+
+  broadcastProgress({
+    jobName: mode,
+    progress: 100,
+    step: isCancelled(jobId) ? "İptal edildi" : "Tamamlandı",
+    queue: await queueCount()
+  });
+
+  safeLog("Bilgi", `Job bitti: market (${p})`);
+  JOBS.delete(jobId);
+}
 
 // ──────────────────────────────────────────────────────────────
 // Bölüm: Tarama Sonucu İşleme + Dedup + Webhook Senkron

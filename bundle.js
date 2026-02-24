@@ -755,7 +755,18 @@
         btnClear: byId('btnClear'),
         btnStop: byId('btnStop'),
         // Hızlı işlemler (Sipariş)
+        btnScanHesap: byId('btnScanHesap'),
+        btnScanSmm: byId('btnScanSmm'),
+        btnDryRun: byId('btnDryRun'),
+        btnSyncNow: byId('btnSyncNow'),
 
+        // Rakip/pazar
+        btnMarketStart: byId('btnMarketStart'),
+        btnMarketOnePage: byId('btnMarketOnePage'),
+        btnMarketRegexTest: byId('btnMarketRegexTest'),
+        btnMarketCopyMd: byId('btnMarketCopyMd'),
+        marketPlatformSelect: byId('marketPlatformSelect'),
+        marketMaxPages: byId('marketMaxPages'),
 
         progressLabel: byId('progressLabel'),
         jobLabel: byId('jobLabel'),
@@ -1689,18 +1700,12 @@ function bindEvents() {
     bindOnce(UI.els.btnStop, 'click', () => safeTry('Durdur', async () => {
       UI.setProgress({ jobName: 'İptal', progress: UI.state.progress, step: 'İş iptal edildi', queue: UI.state.queue });
       UI.log('Uyarı', 'Kullanıcı işlemi durdurdu.');
-      window.Patpat?.Siparis?.stopScan?.();
-      window.Patpat?.Rakip?.stopScan?.();
-      window.Patpat?.SMM?.stopScan?.();
       await sendBg({ type: 'ui_stop' }).catch(() => {});
       UI.toast('Tüm işlemler durduruldu.');
     }), 'stop');
 
     bindOnce(UI.els.btnClear, 'click', () => safeTry('Temizle', async () => {
       if (!confirm('Tablo ve geçici UI durumu temizlensin mi?')) return;
-      window.Patpat?.Siparis?.clearTable?.();
-      window.Patpat?.Rakip?.clearTable?.();
-      window.Patpat?.SMM?.clearTable?.();
       await sendBg({ type: 'ui_clear_ui_state' }).catch(() => {});
       UI.toast('UI tablo ve durum temizlendi.');
       window.dispatchEvent(new CustomEvent('patpat:clear-ui-state'));
@@ -1710,6 +1715,60 @@ function bindEvents() {
     UI.els.btnHelp.addEventListener('click', () => safeTry('Yardım', () => {
       UI.toast('İpucu: Sekme seç, ana butonlarla işlemi başlat.');
       UI.log('Bilgi', 'Yardım gösterildi.');
+    }));
+
+    // Sipariş: Tarama + Senkron
+    if (UI.els.btnScanHesap) UI.els.btnScanHesap.addEventListener('click', () => safeTry('Hesap tarama', async () => {
+      UI.log('Bilgi', 'Hesap taraması başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_hesap' });
+      UI.toast('Hesap taraması başlatıldı.');
+    }));
+
+    if (UI.els.btnScanSmm) UI.els.btnScanSmm.addEventListener('click', () => safeTry('SMM tarama', async () => {
+      UI.log('Bilgi', 'SMM panel taraması başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_smm' });
+      UI.toast('SMM taraması başlatıldı.');
+    }));
+
+    if (UI.els.btnDryRun) UI.els.btnDryRun.addEventListener('click', () => safeTry('Önizleme', async () => {
+      UI.log('Bilgi', 'Önizleme (dry-run) başlatılıyor...');
+      await sendBg({ type: 'ui_start_scan_hesap', options: { dryRun: true } });
+      UI.toast('Önizleme başlatıldı (gönderme yok).');
+    }));
+
+    if (UI.els.btnSyncNow) UI.els.btnSyncNow.addEventListener('click', () => safeTry('Senkron', async () => {
+      UI.log('Bilgi', 'Senkron başlatılıyor...');
+      await sendBg({ type: 'ui_sync_now' });
+      UI.toast('Senkron başlatıldı.');
+    }));
+
+    function getMarketPlatform() {
+      return (UI.els.marketPlatformSelect?.value || 'instagram').trim().toLowerCase();
+    }
+
+    function getMarketMaxPages() {
+      const n = Number(UI.els.marketMaxPages?.value || 3);
+      return Math.max(1, Math.min(50, n));
+    }
+
+    if (UI.els.btnMarketStart) bindOnce(UI.els.btnMarketStart, 'click', () => safeTry('Rakip tarama', async () => {
+      const platform = getMarketPlatform();
+      const maxPages = getMarketMaxPages();
+      UI.log('Bilgi', `Rakip taraması başlatılıyor: ${platform}`);
+      await sendBg({ type: 'ui_market_start', platform, maxPages });
+      UI.toast(`Rakip taraması başladı: ${platform}`);
+    }), 'market-start');
+
+    if (UI.els.btnMarketOnePage) bindOnce(UI.els.btnMarketOnePage, 'click', () => safeTry('Tek sayfa', async () => {
+      const platform = getMarketPlatform();
+      UI.log('Bilgi', `Tek sayfa tarama: ${platform}`);
+      await sendBg({ type: 'ui_market_start', platform, maxPages: 1 });
+      UI.toast(`Tek sayfa tarama başladı: ${platform}`);
+    }), 'market-onepage');
+
+    if (UI.els.btnMarketRegexTest) UI.els.btnMarketRegexTest.addEventListener('click', () => safeTry('Regex test', () => {
+      UI.toast('Regex test bu sürümde sadece taslak (henüz bağlı değil).');
+      UI.log('Uyarı', 'Satıcı Regex Test: henüz bağlanmadı.');
     }));
 
     bindOnce(UI.els.btnSystemRefreshNow, 'click', () => safeTry('Sistem yenile', () => refreshSystemStatus(false)), 'sys-refresh');
@@ -1976,13 +2035,223 @@ function bindEvents() {
 /* ===== END sidepanel.js ===== */
 
 /* ===== BEGIN page-ops.js ===== */
+/* page-ops.js */
 (() => {
   if (typeof document === 'undefined' || document.body?.dataset?.page !== 'sidepanel') return;
+  'use strict';
+
   const Shared = window.Patpat?.Shared;
   if (!Shared) return;
-  Shared.waitFor(() => window.Patpat?.Rakip).then(() => {
-    Shared.log('Bilgi', 'Rakip modülü hazır.');
-  }).catch(() => {});
+
+  const PREVIEW_KEYS = Object.freeze({
+    orders: 'patpat_preview_orders',
+    market: 'patpat_preview_market'
+  });
+
+  const state = {
+    ordersRows: [],
+    marketRows: [],
+    ordersFiltered: [],
+    marketFiltered: [],
+    globalQuery: ''
+  };
+
+  function el(id) { return document.getElementById(id); }
+  function normalizeText(v) { return String(v || '').replace(/\s+/g, ' ').trim(); }
+  function normNumber(v) { return String(v || '').replace(/\D/g, ''); }
+  function normDate(v) {
+    const m = String(v || '').match(/\d{2}\.\d{2}\.\d{4}/);
+    return m ? m[0] : String(v || '');
+  }
+  async function sha256(input) {
+    const enc = new TextEncoder().encode(String(input || ''));
+    const digest = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function maskPII(value) {
+    let s = String(value ?? '');
+    s = s.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[E-POSTA]');
+    s = s.replace(/(\+?\d[\d\s().-]{7,}\d)/g, '[TELEFON]');
+    return s;
+  }
+
+  function applyFilters() {
+    const platform = (el('ordersPlatformFilter')?.value || '').toLowerCase();
+    const status = normalizeText(el('ordersStatusFilter')?.value || '').toLowerCase();
+    const customer = normalizeText(el('ordersCustomerFilter')?.value || '').toLowerCase();
+    const smmId = normNumber(el('ordersSmmIdFilter')?.value || '');
+    const q = state.globalQuery;
+
+    state.ordersFiltered = state.ordersRows.filter((row) => {
+      const hay = JSON.stringify(row).toLowerCase();
+      if (platform && String(row.platform || '').toLowerCase() !== platform) return false;
+      if (status && !String(row.status || '').toLowerCase().includes(status)) return false;
+      if (customer && !String(row.musteriAdi || row.customer || '').toLowerCase().includes(customer)) return false;
+      if (smmId && normNumber(row.smmId) !== smmId) return false;
+      if (q && !hay.includes(q)) return false;
+      return true;
+    });
+
+    state.marketFiltered = state.marketRows.filter((row) => {
+      if (!q) return true;
+      return JSON.stringify(row).toLowerCase().includes(q);
+    });
+  }
+
+  function renderTables() {
+    const ordersCols = [
+      { key: 'smmId', label: 'SMM ID' },
+      { key: 'siparisNo', label: 'Sipariş No' },
+      { key: 'platform', label: 'Platform' },
+      { key: 'status', label: 'Durum' },
+      { key: 'toplamTutar', label: 'Toplam Tutar' },
+      { key: 'tarih', label: 'Tarih' }
+    ];
+    const marketCols = [
+      { key: 'platform', label: 'Platform' },
+      { key: 'hizmet', label: 'Hizmet' },
+      { key: 'saticiAdi', label: 'Mağaza Adı' },
+      { key: 'garanti', label: 'Garanti' },
+      { key: 'basariliIslem', label: 'Başarılı İşlem' },
+      { key: 'fiyat', label: 'Fiyat' }
+    ];
+
+    const ordersRows = state.ordersFiltered.length ? state.ordersFiltered : [{ smmId: '—', siparisNo: '—', platform: '—', status: 'Henüz veri yok', toplamTutar: '—', tarih: '—' }];
+    const marketRows = state.marketFiltered.length ? state.marketFiltered : [{ platform: '—', hizmet: '—', saticiAdi: 'Henüz veri yok', garanti: '—', basariliIslem: '—', fiyat: '—' }];
+
+    Shared.renderTable(el('ordersPreviewWrap'), ordersCols, ordersRows, { emptyText: 'Henüz sipariş verisi yok.' });
+    Shared.renderTable(el('marketPreviewWrap'), marketCols, marketRows, { emptyText: 'Henüz rakip verisi yok.' });
+    if (el('ordersEmpty')) el('ordersEmpty').hidden = state.ordersFiltered.length > 0;
+    if (el('marketEmpty')) el('marketEmpty').hidden = state.marketFiltered.length > 0;
+  }
+
+  async function refreshPreview() {
+    const orders = await Shared.getLocal(PREVIEW_KEYS.orders);
+    const market = await Shared.getLocal(PREVIEW_KEYS.market);
+    state.ordersRows = Array.isArray(orders?.rows) ? orders.rows : [];
+    state.marketRows = Array.isArray(market?.rows) ? market.rows : [];
+    applyFilters();
+    renderTables();
+  }
+
+  function rowsToMd(rows) {
+    if (!rows.length) return '| Veri |\n|---|\n| Kayıt yok |';
+    const cols = Object.keys(rows[0]);
+    const head = `| ${cols.join(' | ')} |`;
+    const sep = `| ${cols.map(() => '---').join(' | ')} |`;
+    const body = rows.map((r) => `| ${cols.map((c) => String(r[c] ?? '').replace(/\|/g, '\\|')).join(' | ')} |`).join('\n');
+    return `${head}\n${sep}\n${body}`;
+  }
+
+  function buildFilename(prefix, rows) {
+    const d = new Date();
+    const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}`;
+    const search = state.globalQuery ? `_${state.globalQuery.replace(/\s+/g, '-').replace(/[^a-z0-9-_ğüşöçıİĞÜŞÖÇ]/gi, '')}` : '';
+    return `${prefix}_${rows.length}_${ts}${search}`;
+  }
+
+  function exportRows(rows, type, prefix) {
+    if (!rows.length) return Shared.toast('Dışa aktarım için satır yok.');
+    const masked = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, maskPII(v)])));
+    const fileBase = buildFilename(prefix, masked);
+    if (type === 'json') {
+      Shared.downloadText(`${fileBase}.json`, JSON.stringify(masked, null, 2), 'application/json');
+    } else if (type === 'csv') {
+      const cols = Object.keys(masked[0]);
+      const csv = [cols.join(',')]
+        .concat(masked.map((r) => cols.map((c) => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(',')))
+        .join('\n');
+      Shared.downloadText(`${fileBase}.csv`, '\ufeff' + csv, 'text/csv;charset=utf-8');
+    } else if (type === 'html') {
+      const cols = Object.keys(masked[0]);
+      const rowsHtml = masked
+        .map((r, i) => `<tr style="background:${i % 2 ? '#0f1630' : '#121c3a'}">${cols.map((c) => `<td>${String(r[c] ?? '')}</td>`).join('')}</tr>`)
+        .join('');
+      const html = `<!doctype html><html><meta charset="utf-8"><style>table{width:100%;border-collapse:collapse}td,th{border:1px solid #ddd;padding:8px}@media(max-width:700px){table{font-size:12px}}</style><table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></html>`;
+      Shared.downloadText(`${fileBase}.html`, html, 'text/html;charset=utf-8');
+    } else if (type === 'txt') {
+      const txt = `Toplam Kayıt: ${masked.length}\n\n` + masked.map((r) => Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(' | ')).join('\n');
+      Shared.downloadText(`${fileBase}.txt`, txt, 'text/plain;charset=utf-8');
+    }
+  }
+
+  async function clearUiState() {
+    state.ordersRows = []; state.marketRows = []; state.ordersFiltered = []; state.marketFiltered = [];
+    await Shared.setLocal(PREVIEW_KEYS.orders, { rows: [], clearedAt: Date.now() });
+    await Shared.setLocal(PREVIEW_KEYS.market, { rows: [], clearedAt: Date.now() });
+    renderTables();
+  }
+
+  async function init() {
+    Shared.bindOnce(el('btnOrdersApplyFilter'), 'click', () => { applyFilters(); renderTables(); }, 'orders-filter-apply');
+    Shared.bindOnce(el('btnOrdersResetFilter'), 'click', () => {
+      ['ordersPlatformFilter','ordersStatusFilter','ordersCustomerFilter','ordersSmmIdFilter'].forEach((id)=>{ const x=el(id); if (x) x.value=''; });
+      state.globalQuery = '';
+      applyFilters(); renderTables();
+    }, 'orders-filter-reset');
+
+    Shared.bindOnce(el('btnOrdersCopyMd'), 'click', async () => {
+      await navigator.clipboard.writeText(rowsToMd(state.ordersFiltered));
+      Shared.toast('Sipariş tablosu Markdown olarak kopyalandı.');
+    }, 'orders-copy-md');
+
+    Shared.bindOnce(el('btnMarketCopyMd'), 'click', async () => {
+      await navigator.clipboard.writeText(rowsToMd(state.marketFiltered));
+      Shared.toast('Market tablosu Markdown olarak kopyalandı.');
+    }, 'market-copy-md');
+
+    [['btnOrdersExportJson','json','ORDERS'],['btnOrdersExportCsv','csv','ORDERS'],['btnOrdersExportHtml','html','ORDERS'],['btnOrdersExportTxt','txt','ORDERS']]
+      .forEach(([id,t,p]) => Shared.bindOnce(el(id), 'click', () => { if(confirm('Dışa aktarım yapılsın mı?')) exportRows(state.ordersFiltered,t,p); }, id));
+    [['btnMarketExportJson','json','MARKET'],['btnMarketExportCsv','csv','MARKET'],['btnMarketExportHtml','html','MARKET'],['btnMarketExportTxt','txt','MARKET']]
+      .forEach(([id,t,p]) => Shared.bindOnce(el(id), 'click', () => { if(confirm('Dışa aktarım yapılsın mı?')) exportRows(state.marketFiltered,t,p); }, id));
+
+    Shared.bindOnce(el('btnSheetsPush'), 'click', async () => {
+      if (!confirm('Filtreli veriler Sheets entegrasyonuna gönderilsin mi?')) return;
+      await Shared.sendToBackground('ui_sync_now', { rows: state.ordersFiltered });
+      Shared.toast('Sheets/Senkron işlemi tetiklendi.');
+    }, 'sheets-push');
+
+    Shared.bindOnce(el('btnMarketRegexTest'), 'click', () => {
+      Shared.openModal('Regex Test', '<textarea id="rxTxt" style="width:100%;min-height:130px"></textarea><button id="rxRun">Test Et</button><button id="rxCopy">Sayfayı Kopyala</button><button id="rxAi">AI\'ya Sor</button><pre id="rxOut"></pre>');
+      setTimeout(() => {
+        const t=el('rxTxt'), o=el('rxOut'), run=el('rxRun'), cp=el('rxCopy'), ai=el('rxAi');
+        if (!t||!o||!run||!cp||!ai) return;
+        run.addEventListener('click', () => {
+          const txt = String(t.value||'');
+          const found = txt.match(/^[a-zA-Z0-9_]{3,20}$/gm) || [];
+          o.textContent = found.length ? found.join('\n') : 'Regex null. Kopyala + AI kullanın.';
+        });
+        cp.addEventListener('click', async () => { await navigator.clipboard.writeText(t.value||document.body.innerText||''); Shared.toast('Sayfa metni kopyalandı.'); });
+        ai.addEventListener('click', () => {
+          if (!(window.puter && window.puter.ai && window.puter.ai.chat)) return Shared.toast('Puter AI hazır değil.');
+          window.puter.ai.chat({ model: (window.__PatpatUI?.UI?.state?.aiModel || 'gpt-5-mini'), messages: [{ role:'user', content: `Regex çıkar: ${t.value||''}` }] })
+          .then((r)=>{ o.textContent = String(r?.message?.content||r?.content||r||''); })
+          .catch(()=> Shared.toast('Puter AI çağrısı başarısız.'));
+        });
+      }, 0);
+    }, 'market-regex-test');
+
+    Shared.bindOnce(window, 'patpat:global-search', (ev) => {
+      state.globalQuery = String(ev?.detail?.q || '').toLowerCase();
+      applyFilters();
+      renderTables();
+    }, 'global-search-ops');
+
+    Shared.bindOnce(window, 'patpat:clear-ui-state', () => { Shared.safeTry('UI clear', clearUiState); }, 'clear-ui-ops');
+
+    await refreshPreview();
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes[PREVIEW_KEYS.orders] || changes[PREVIEW_KEYS.market]) refreshPreview();
+      });
+    }
+  }
+
+  Shared.waitFor(() => window.__PatpatUI?.UI).then(init).catch((e) => {
+    Shared.log('Uyarı', `page-ops başlatılamadı: ${Shared.formatErr(e)}`);
+  });
 })();
 /* ===== END page-ops.js ===== */
 
@@ -2019,20 +2288,16 @@ function bindEvents() {
   function el(id) { return document.getElementById(id); }
 
   async function init() {
-    if (root.Patpat?.Sikayet) {
-      Shared.log('Bilgi', 'Sikayet modülü aktif, legacy complaint UI atlandı.');
-    } else {
     // Şikayet paneline liste/detay alanı ekle
     mountComplaintsUI();
     await refreshComplaints();
-    }
 
     // Kurallar paneline liste alanı ekle
     mountRulesUI();
     await refreshRules();
 
     // Butonlar
-    if (!root.Patpat?.Sikayet) bindComplaintButtons();
+    bindComplaintButtons();
     bindRuleButtons();
 
     // Depolama değişimlerinde yenile
@@ -2904,7 +3169,7 @@ function bindEvents() {
 /* content-crawler.js
  *
  * Amaç:
- * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap siparişleri + rakip/pazar taraması)
+ * - Target sayfalardan “en iyi çaba” ile veri çıkarmak (hesap/smm siparişleri + rakip/pazar taraması)
  * - window.__PatpatCrawler altında tek bir run() API'si yayınlamak
  *
  * Notlar:
@@ -3019,7 +3284,7 @@ function bindEvents() {
 
     // ID içerme olasılığı yüksek anahtarlar
     const keyPriority = [
-      'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
+      'smmid', 'id', 'sipariş id', 'sipariş no', 'siparis no', 'siparis id', 'order id', 'order no', 'no'
     ];
 
     for (const k of keys) {
@@ -3091,9 +3356,9 @@ function bindEvents() {
 
     onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
     const rows = rawRows.map((r) => {
-      const rowId = pickIdFromRow(r);
+      const smmId = pickIdFromRow(r);
       return {
-        rowId: rowId || `row_${hash32(JSON.stringify(r))}`,
+        smmId: smmId || `row_${hash32(JSON.stringify(r))}`,
         source: mode,
         url: location.href,
         ...r
@@ -3140,7 +3405,7 @@ function bindEvents() {
       seen.add(key);
 
       rows.push({
-        rowId: `m_${hash32(key)}`,
+        smmId: `m_${hash32(key)}`,
         source: mode,
         platform: String(options?.platform || ''),
         page: Number(options?.page || 0),
