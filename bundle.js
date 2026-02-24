@@ -3790,7 +3790,7 @@ function bindEvents() {
               type: "crawl_result",
               mode,
               rows: result.rows || [],
-              meta: result.meta || { url },
+              meta: { ...(result.meta || { url }), jobId: String(options?.jobId || "") },
               errors: result.errors || []
             });
 
@@ -3800,7 +3800,7 @@ function bindEvents() {
               type: "crawl_result",
               mode,
               rows: [],
-              meta: { url, runId: activeRun?.id || "" },
+              meta: { url, runId: activeRun?.id || "", jobId: String(options?.jobId || "") },
               errors: ["CRAWL_FAILED", formatErr(e)]
             });
           } finally {

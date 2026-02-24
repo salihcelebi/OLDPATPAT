@@ -162,7 +162,7 @@ function newJobId(prefix) {
 
 function createJob(prefix) {
   const jobId = newJobId(prefix);
-  JOBS.set(jobId, { cancelled: false, workerTabs: new Set() });
+  JOBS.set(jobId, { cancelled: false, stopByDate: false, workerTabs: new Set() });
   return jobId;
 }
 
@@ -421,7 +421,7 @@ async function runScanJob(jobId, mode, urls, uiOptions = {}) {
       });
 
       await ensureContentScripts(tabId);
-      const result = await sendMessageWithRetry(tabId, {
+      await sendMessageWithRetry(tabId, {
         type: "crawl",
         mode,
         url,
@@ -431,16 +431,17 @@ async function runScanJob(jobId, mode, urls, uiOptions = {}) {
           page: pageNo || 1,
           maxPages,
           lookbackDays,
-          nid
+          nid,
+          jobId
         }
       });
 
-      if (result?.ok === false && /date/i.test(String(result?.error || ""))) {
-        safeLog("Bilgi", "Tarih limiti dışına çıkıldı, tarama güvenli şekilde sonlandırılıyor.");
+      safeLog("Bilgi", `Tarama komutu gönderildi: ${url}`);
+
+      if (JOBS.get(jobId)?.stopByDate) {
+        safeLog("Bilgi", "Tarih limiti dışına çıkıldığı için tarama durduruldu.");
         break;
       }
-
-      safeLog("Bilgi", `Tarama komutu gönderildi: ${url}`);
     } catch (e) {
       safeLog("Hata", `Tarama akışı hatası: ${url} • ${formatErr(e)}`);
       if (tabId && !isCancelled(jobId)) {
@@ -533,6 +534,12 @@ async function handleCrawlResult(msg, sender) {
   }
 
   safeLog("Bilgi", `Tarama sonucu alındı (${mode}): ${rows.length} satır`);
+
+  const jobId = String(meta?.jobId || "");
+  if (jobId && String(meta?.stopReason || "") === "OUTSIDE_DATE_LIMIT") {
+    const j = JOBS.get(jobId);
+    if (j) j.stopByDate = true;
+  }
 
   if (mode === "market_scan") {
     await appendPreviewRows(STORAGE_KEYS.previewMarket, rows, { mode, meta });
