@@ -22,6 +22,8 @@
     .flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
     .item{margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer}
     .item.active{border-color:#6dd9a5;background:rgba(109,217,165,.1)}
+=======
+ main
   </style>
 </head>
 <body data-page="sidepanel">
@@ -47,6 +49,13 @@
       <div class="hint" id="complaintTargetDays">Hedef günler: —</div><div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div><div class="hint" id="complaintActionHint">Hazır.</div>
       <div class="hint" style="margin-top:8px">Şikayetçi tespit akışı adım adım log:</div>
       <pre id="complaintFlowLog" class="flowlog"></pre>
+=======
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintVerify">Oturum Doğrula</button><button class="btn" id="btnComplaintScan">Taramayı Başlat</button><button class="btn" id="btnComplaintStop">Durdur</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintDraft">Yanıt Taslağı</button><button class="btn" id="btnComplaintSolution">Çözüm Öner</button><button class="btn" id="btnComplaintEscalate">Yöneticiye Eskale</button><button class="btn" id="btnComplaintClose">Şikayeti Kapat</button></div>
+      <div class="row" style="margin-top:8px"><input id="inpComplaintSearch" type="text" placeholder="Ara: hizmet, sipariş no, SMM ID, durum, sorun satırı" style="min-width:320px"/></div>
+      <div class="hint" id="complaintTargetDays">Hedef günler: —</div><div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div><div class="hint" id="complaintActionHint">Hazır.</div>
+ main
     </div>
     <div class="card"><div class="tableWrap"><table><thead><tr><th>Hizmet</th><th>Sipariş No</th><th>SMM ID</th><th>Tarih</th><th>Sorun Satırı</th><th>SLA</th><th>Fiyat</th><th>Durum</th><th>Sayfa</th><th>Kart</th></tr></thead><tbody id="tblComplaintBody"></tbody></table></div><div class="empty" id="complaintTableEmpty" style="margin-top:8px">Henüz tablo verisi yok.</div></div>
     <div class="card"><div class="grid"><div><div class="hint">Liste</div><div id="complaintsList" style="max-height:320px;overflow:auto"></div></div><div><div class="hint">Detay</div><div id="complaintDetail" style="min-height:220px"></div></div><div><div class="hint">Eylem</div><textarea id="complaintDraftText" style="min-height:220px" placeholder="Yanıt taslağı burada oluşur."></textarea><div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintCopyDraft">Taslağı Kopyala</button><button class="btn" id="btnComplaintOpenMessage">Mesaj Sayfasına Git</button></div></div></div></div>
