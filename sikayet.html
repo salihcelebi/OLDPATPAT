@@ -9,6 +9,13 @@
     body{margin:0;background:linear-gradient(180deg,#102216,#122a1b);color:var(--text);font-family:system-ui}
     .wrap{padding:14px;position:relative}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.control{display:flex;flex-direction:column;gap:4px;min-width:150px}
+    .btn,input,textarea,select{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
+    textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;min-width:1120px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:999px;background:rgba(207,47,56,.7);color:#fff;font-weight:900;padding:8px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
+    .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
  
     .btn,input,textarea,select{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
     textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
@@ -17,7 +24,6 @@
     .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
     .fs{position:absolute;top:14px;right:14px;border:0;border-radius:999px;background:rgba(207,47,56,.7);color:#fff;font-weight:900;padding:8px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
     .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
-=======
     .btn,input,textarea{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
     textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
  codex/integrate-puter.js-in-all-specified-files
@@ -26,7 +32,6 @@
     .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
     .fs{position:absolute;top:14px;right:14px;border:0;border-radius:12px;background:var(--danger);color:#fff;font-weight:900;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
     .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
-=======
     table{width:100%;border-collapse:collapse;min-width:1050px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
     .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
     .grid{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
@@ -40,7 +45,6 @@
   <div class="wrap" id="complaintRoot">
     <button class="fs" id="btnComplaintFullscreen" type="button">TAM</button>
 
-=======
     <button class="fs" id="btnComplaintFullscreen" type="button">TAM EKRAN GÖSTER</button>
  main
     <div class="card layout-3">

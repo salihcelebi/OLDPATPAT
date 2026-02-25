@@ -94,6 +94,22 @@
     return String(v || '').replace(/\b\d{4}\b/g, '').replace(/fiyat[:\s].*/gi, '').replace(/\s{2,}/g, ' ').trim();
   }
 
+
+  async function saveRows() {
+    await setLocal(KEY_ROWS, state.rows);
+    await setLocal(KEY_SELECTED, state.selectedId || '');
+  }
+
+  function normalizeStatusKey(statusRaw) {
+    const t = String(statusRaw || '').toUpperCase();
+    const map = { TAMAMLANDI: 'TAMAMLANDI', 'KISMEN TAMAMLANDI': 'KISMEN', 'YÜKLENİYOR': 'YUKLENIYOR', 'İPTAL': 'IPTAL' };
+    return Object.keys(map).find((k) => t.includes(k)) ? map[Object.keys(map).find((k) => t.includes(k))] : 'BEKLEMEDE';
+  }
+
+  function sanitizeMessage(v) {
+    return String(v || '').replace(/\b\d{4}\b/g, '').replace(/fiyat[:\s].*/gi, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
   function renderEscalations() {
     const panel = byId('escalationPanel');
     if (!panel) return;
@@ -247,6 +263,13 @@
     setActionHint('Tarama durduruldu.', false);
   }
 
+  }
+
+  function stopScan() {
+    state.stopScan = true;
+    setActionHint('Tarama durduruldu.', false);
+  }
+
   function buildTemplateMessage(orderData) {
     const key = normalizeStatusKey(orderData.status);
     const template = state.templates[key] || state.templates.BEKLEMEDE;
@@ -291,6 +314,11 @@
         clickSafe(menu);
         await wait(250);
 
+
+        const menu = [...document.querySelectorAll('a.dropdown-item,button.dropdown-item,a,button')].find((el) => /mesaj/i.test(textOf(el)));
+        clickSafe(menu);
+        await wait(250);
+
         const selectors = ['input.form-control.messagehere', '.chat-input-field#message', 'textarea#message', 'textarea.form-control.messagehere'];
         let input = document.querySelector(selectors.join(','));
         for (let i = 0; i < 3 && !input; i += 1) { await wait(250); input = document.querySelector(selectors.join(',')); }
@@ -302,6 +330,66 @@
         }
         const send = [...document.querySelectorAll('button,a')].find((el) => /gönder|gonder|send/i.test(textOf(el)));
         return { ok: clickSafe(send) };
+      }
+    });
+    return !!result?.ok;
+  }
+
+  async function runComplaintAutomation() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    const tabId = await getActiveTabId();
+
+    setActionHint('Aşama 1/3: Şikayetçi bilgisi alınıyor...');
+    chrome.runtime.sendMessage({ type: 'progress', progress: 33 });
+    const [{ result: incoming }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+        const nodes = [...document.querySelectorAll('ul.messagelist li, .message-bubble, .chat-bubble, .message-text, .conversation .msg, .chat-message')];
+        return nodes.map((n) => clean(n.textContent)).filter((t) => t && !/kullanıcı mesajıdır/i.test(t)).slice(-12).join('\n');
+      }
+    });
+
+    setActionHint('Aşama 2/3: Mesaj taslağı hazırlanıyor...');
+    chrome.runtime.sendMessage({ type: 'progress', progress: 66 });
+    const ackNeeded = /hızlı|acil|hemen/.test(String(incoming || '').toLowerCase());
+    const template = buildTemplateMessage(c);
+    const finalMessage = await humanizeWithPuter(template, incoming || '');
+
+    if (ackNeeded) await sendToCustomer(tabId, 'TAMAM KRAL 🤴 HEMEN BAKIYORUM 🙏🏻');
+    const sent = await sendToCustomer(tabId, finalMessage);
+
+    setActionHint(sent ? 'Aşama 3/3: Mesaj gönderildi.' : 'Aşama 3/3: Mesaj gönderilemedi.', sent);
+    chrome.runtime.sendMessage({ type: 'progress', progress: 100 });
+    ui.draft.value = finalMessage;
+  }
+
+  function makeDraft() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    ui.draft.value = buildTemplateMessage(c);
+  }
+
+  function makeSolution() {
+    if (!ui.draft.value.trim()) makeDraft();
+    ui.draft.value = `${ui.draft.value.trim()}\n\nÇözüm: Kontrol ettim, süreci hızlandırmak için işleme öncelik veriyorum.`;
+  }
+
+  async function escalate(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    targets.forEach((r) => { r.escalated = true; });
+    await saveRows();
+    render();
+    setActionHint(`Eskale edildi: ${targets.length}`);
+  }
+
+  async function closeComplaint(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    if (!confirm('Şikayet kapatılsın mı?')) return;
+    targets.forEach((r) => { r.closed = true; r.status = 'KAPATILDI'; });
       }
     });
     return !!result?.ok;
@@ -453,6 +541,27 @@
     await saveRows();
     render();
     setActionHint(`Eskale edildi: ${targets.length}`);
+  }
+
+  async function exportRulesTemplates() {
+    const payload = { rules: state.rules, templates: state.templates, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'patpat-rules-templates.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importRulesTemplates(file) {
+    if (!file) return;
+    const txt = await file.text();
+    const data = JSON.parse(txt);
+    if (data.rules) state.rules = String(data.rules);
+    if (data.templates && typeof data.templates === 'object') state.templates = { ...DEFAULT_TEMPLATES, ...data.templates };
+    await setLocal(KEY_RULES, state.rules);
+    await setLocal(KEY_TEMPLATES, state.templates);
+    setActionHint('Rule/template import tamamlandı.');
   }
 
   async function closeComplaint(ids) {

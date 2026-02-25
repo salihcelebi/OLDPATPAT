@@ -16,7 +16,7 @@
 </head>
 <body data-page="sidepanel">
   <div class="wrap" id="siparisRoot">
-    <button id="btnSiparisFullscreen" class="fs" type="button">TAM EKRAN GÖSTER</button>
+    
     <div class="card"><h3>Hesap Sattığım İlanlar Taraması</h3><div class="row"><select id="selSiparisStatus"><option value="all">Tüm Durumlar</option><option value="pending">pending</option><option value="processing">processing</option><option value="completed">completed</option><option value="cancelled">cancelled</option><option value="returnprocess">returnprocess</option></select><input id="inpSiparisMaxPage" type="number" min="1" max="50" value="5"/><button class="btn" id="btnSiparisStart">Taramayı Başlat</button><button class="btn" id="btnSiparisStop">Durdur</button><button class="btn" id="btnSiparisClear">Temizle</button><button class="btn" id="btnSiparisCopyMd">MD Kopyala</button><button class="btn" id="btnSiparisExportJson">JSON</button><button class="btn" id="btnSiparisExportCsv">CSV</button></div><div class="hint" id="siparisStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div></div>
     <div class="card" style="overflow:auto"><table><thead><tr><th>İlan Başlığı</th><th>Sipariş No</th><th>SMM ID</th><th>Tarih</th><th>Durum</th><th>Tutar</th><th>Kullanıcı</th></tr></thead><tbody id="tblSiparisBody"></tbody></table><div class="empty" id="ordersEmpty">Henüz sipariş verisi yok.</div></div>
   </div>
