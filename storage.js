@@ -18,3 +18,5 @@
 
   window.PatpatStorage = { readSettings, writeSettings };
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Storage', rootSelector: '#storageTemplateRoot', enableImage: false }));

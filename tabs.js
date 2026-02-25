@@ -3,7 +3,8 @@
     smm: 'smm.html',
     siparis: 'siparis.html',
     sikayet: 'sikayet.html',
-    rakip: 'rakip.html'
+    rakip: 'rakip.html',
+    resim: 'resim.html'
   };
 
   function initTabs({ root, frame, onChange }) {
@@ -30,3 +31,5 @@
 
   window.PatpatTabs = { initTabs };
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Tabs', rootSelector: '.tabs-bar', enableImage: false }));

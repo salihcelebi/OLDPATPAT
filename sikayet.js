@@ -5,6 +5,7 @@
   const KEY_ROWS = 'patpat_complaints';
   const KEY_RULES = 'ASSISTANT_RULES_V1';
   const KEY_TEMPLATES = 'TEMPLATES_V1';
+  const KEY_SELECTED = 'selectedComplaintId';
   const LEGACY_TEMPLATES_KEY = 'patpat_complaint_message_templates';
 
   const DEFAULT_RULES = [
@@ -26,7 +27,7 @@
     'İPTAL EDİLDİ': 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: İPTAL EDİLDİ.\nSİPARİŞ SİSTEMDE İPTAL GÖRÜNÜYOR; DETAY İÇİN LÜTFEN BİZE BİLGİ VERİNİZ.'
   });
 
-  const state = { rows: [], selectedId: '', templates: { ...DEFAULT_TEMPLATES }, rules: DEFAULT_RULES };
+  const state = { rows: [], selectedId: '', selectedIds: new Set(), templates: { ...DEFAULT_TEMPLATES }, rules: DEFAULT_RULES, stopScan: false };
   const ui = {};
   const byId = (id) => document.getElementById(id);
   const toast = (m) => window.__PatpatUI?.UI?.toast?.(m) || alert(m);
@@ -56,6 +57,8 @@
   async function loadPersistedState() {
     const rows = await getLocal(KEY_ROWS);
     state.rows = Array.isArray(rows) ? rows : [];
+    const savedSelected = await getLocal(KEY_SELECTED);
+    if (savedSelected && state.rows.some((x) => x.id === savedSelected)) state.selectedId = savedSelected;
     if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
 
     const templates = await getLocal(KEY_TEMPLATES) || await getLocal(LEGACY_TEMPLATES_KEY);
@@ -67,11 +70,12 @@
     if (!savedRules) await setLocal(KEY_RULES, state.rules);
   }
 
-  async function saveRows() { await setLocal(KEY_ROWS, state.rows); }
+  async function saveRows() { await setLocal(KEY_ROWS, state.rows); await setLocal(KEY_SELECTED, state.selectedId || ''); }
 
   function renderTable(list) {
     ui.tbody.innerHTML = list.map((r) => `
-      <tr data-id="${r.id}">
+      <tr data-id="${r.id}" class="${r.id === state.selectedId ? 'active-row' : ''}">
+        <td><input type="checkbox" data-id="${r.id}" ${state.selectedIds.has(r.id) ? 'checked' : ''}></td>
         <td>${r.serviceName || '—'}</td><td>${r.orderNo || '—'}</td><td>${r.smmId || '—'}</td>
         <td>${r.dateText || '—'}</td><td>${r.problemText || '—'}</td>
         <td>${r.slaMinutes ?? '—'}</td><td>${r.priceText || '—'}</td><td>${r.status || '—'}</td>
@@ -79,16 +83,13 @@
       </tr>
     `).join('');
     ui.tableEmpty.hidden = list.length > 0;
-    ui.tbody.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => {
-      state.selectedId = tr.getAttribute('data-id') || '';
-      render();
-    }));
   }
 
   function render() {
     const q = String(ui.search?.value || '').toLowerCase().trim();
     const list = state.rows.filter((r) => !q || [r.serviceName, r.orderNo, r.smmId, r.status, r.problemText].join(' ').toLowerCase().includes(q));
     ui.stats.textContent = `Kayıt: ${list.length} • SLA Risk: ${list.filter((x) => x.slaRisk).length}`;
+    byId('selCount').textContent = `SEÇİLİ: ${state.selectedIds.size}`;
     ui.list.innerHTML = list.map((r) => `<div class="item ${r.id === state.selectedId ? 'active' : ''}" data-id="${r.id}">${r.smmId || '—'} • #${r.orderNo || '—'} • ${r.status || '—'}</div>`).join('') || '<div class="empty">Şikayet kaydı yok.</div>';
     ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => {
       state.selectedId = el.getAttribute('data-id') || '';
@@ -97,6 +98,7 @@
     renderTable(list);
 
     const c = pickSelected();
+    updateActionButtons();
     ui.detail.innerHTML = c ? `<div style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"><div><b>Şikayetçi:</b> ${c.customer || '—'}</div><div><b>SMM ID:</b> ${c.smmId || '—'}</div><div><b>Durum:</b> ${c.status || '—'}</div></div>` : '<div class="empty">Detay için kayıt seç.</div>';
   }
 
@@ -177,7 +179,7 @@
       func: () => {
         const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
         const ignored = [/kullanıcı mesajıdır, sistem mesajı değildir!/i, /uyarı|warning|dikkat/i];
-        const nodes = [...document.querySelectorAll('.message-bubble, .chat-bubble, .message-text, .conversation .msg, .chat-message')];
+        const nodes = [...document.querySelectorAll('ul.messagelist li, .message-bubble, .chat-bubble, .message-text, .conversation .msg, .chat-message')];
         const raw = nodes
           .map((n, i) => ({ idx: i, text: clean(n.textContent) }))
           .filter((x) => x.text && !ignored.some((rx) => rx.test(x.text)));
@@ -280,7 +282,7 @@
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       args: [message],
-      func: (msg) => {
+      func: async (msg) => {
         const logs = [];
         const textOf = (n) => String(n?.textContent || '').replace(/\s+/g, ' ').trim();
         const clickSafe = (el) => { try { el?.click(); return !!el; } catch { return false; } };
@@ -298,7 +300,18 @@
         const msgMenu = [...document.querySelectorAll('a.dropdown-item,button.dropdown-item,a,button')].find((el) => /mesaj/i.test(textOf(el)));
         logs.push({ selector: 'a.dropdown-item[mesaj]', found: !!msgMenu, clicked: clickSafe(msgMenu) });
 
-        const input = document.querySelector('input.form-control.messagehere, .chat-input-field#message, textarea#message, textarea.form-control.messagehere');
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const inputSelectors = ['input.form-control.messagehere', '.chat-input-field#message', 'textarea#message', 'textarea.form-control.messagehere'];
+        const findInput = () => document.querySelector(inputSelectors.join(','));
+
+        let input = findInput();
+        if (!input) {
+          for (let i = 0; i < 3 && !input; i += 1) {
+            // @ts-ignore
+            await wait(250);
+            input = findInput();
+          }
+        }
         if (input) {
           input.focus();
           input.value = msg;
@@ -361,6 +374,85 @@
     render();
   }
 
+
+  function debounce(fn, wait = 150) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), wait);
+    };
+  }
+
+  function setActionHint(text, ok = true) {
+    const el = byId('complaintActionHint');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? '#88ffb7' : '#ff9ba5';
+  }
+
+  function updateActionButtons() {
+    const on = !!state.selectedId;
+    ['btnComplaintDraft', 'btnComplaintSolution', 'btnComplaintEscalate', 'btnComplaintClose'].forEach((id) => {
+      const el = byId(id);
+      if (el) el.disabled = !on;
+    });
+  }
+
+  function selectRow(id) {
+    if (!id) return;
+    state.selectedId = id;
+    saveRows();
+    render();
+  }
+
+  async function verifySession() {
+    try {
+      const tabId = await getActiveTabId();
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => ({ ok: !!document.querySelector('body') && !/login|giriş/i.test(document.body.innerText.slice(0, 3000)) })
+      });
+      setActionHint(result?.ok ? 'Oturum OK' : 'Oturum Gerekli', !!result?.ok);
+    } catch {
+      setActionHint('Oturum Gerekli', false);
+    }
+  }
+
+  function makeDraft() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    const data = { service: c.serviceName, start: c.startText || '—', amount: c.amountText || '—', orderLink: c.orderLink || c.messageUrl || '—', date: c.dateText || '—', status: c.status || 'BEKLEMEDE' };
+    ui.draft.value = buildTemplateMessage(data);
+  }
+
+  function makeSolution() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    ui.draft.value = `${ui.draft.value || ''}
+
+Çözüm: Sipariş detayları kontrol edilip hızlandırma talebi açıldı.`.trim();
+  }
+
+  async function escalate(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    targets.forEach((r) => { r.escalated = true; });
+    await saveRows();
+    render();
+    setActionHint(`Eskale edildi: ${targets.length}`);
+  }
+
+  async function closeComplaint(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    if (!confirm('Şikayet kapatılsın mı?')) return;
+    targets.forEach((r) => { r.closed = true; r.status = 'KAPATILDI'; });
+    await saveRows();
+    render();
+  }
+
+  async function startScan() { state.stopScan = false; setActionHint('Tarama başlatıldı.'); }
+  async function stopScan() { state.stopScan = true; setActionHint('Tarama durduruldu.', false); }
   function bind() {
     ui.search = byId('inpComplaintSearch');
     ui.stats = byId('complaintStats');
@@ -378,6 +470,7 @@
     });
     byId('btnComplaintOpenMessage')?.addEventListener('click', () => {
       const c = pickSelected();
+    updateActionButtons();
       if (!c?.messageUrl) return toast('Mesaj URL yok.');
       chrome.tabs.create({ url: c.messageUrl });
     });
@@ -385,12 +478,60 @@
       const el = byId('complaintRoot') || document.documentElement;
       if (!document.fullscreenElement) await el.requestFullscreen?.(); else await document.exitFullscreen?.();
     });
-    ui.search?.addEventListener('input', render);
+    ui.search?.addEventListener('input', debounce(render, 150));
+
+    byId('btnComplaintVerify')?.addEventListener('click', verifySession);
+    byId('btnComplaintScan')?.addEventListener('click', startScan);
+    byId('btnComplaintStop')?.addEventListener('click', stopScan);
+    byId('btnComplaintDraft')?.addEventListener('click', makeDraft);
+    byId('btnComplaintSolution')?.addEventListener('click', makeSolution);
+    byId('btnComplaintEscalate')?.addEventListener('click', () => escalate());
+    byId('btnComplaintClose')?.addEventListener('click', () => closeComplaint());
+    byId('btnBulkDraft')?.addEventListener('click', () => {
+      const ids = [...state.selectedIds];
+      if (!ids.length) return toast('Toplu taslak için seçim yap.');
+      state.selectedId = ids[0];
+      makeDraft();
+      setActionHint(`Toplu taslak hazırlandı: ${ids.length}`);
+    });
+    byId('btnBulkEscalate')?.addEventListener('click', () => escalate([...state.selectedIds]));
+    byId('btnBulkClose')?.addEventListener('click', () => closeComplaint([...state.selectedIds]));
+
+    byId('inpComplaintToday').value = new Date().toLocaleDateString('tr-TR');
+    byId('inpComplaintNid')?.addEventListener('input', (e) => { byId('complaintNidValue').textContent = `NID: ${e.target.value}`; });
+
+    ui.tbody?.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr');
+      const cb = e.target.closest('input[type="checkbox"]');
+      if (cb?.dataset?.id) {
+        if (cb.checked) state.selectedIds.add(cb.dataset.id); else state.selectedIds.delete(cb.dataset.id);
+        byId('selCount').textContent = `SEÇİLİ: ${state.selectedIds.size}`;
+        return;
+      }
+      if (tr?.dataset?.id) selectRow(tr.dataset.id);
+    });
+
+    byId('toggleLog')?.addEventListener('click', () => {
+      const el = byId('complaintFlowLog');
+      el.hidden = !el.hidden;
+    });
+
+    document.querySelectorAll('#btnComplaintFullscreen').forEach((b, i) => i && b.remove());
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); byId('btnComplaintFindReporter')?.click(); }
+      if (e.key === 'Escape') { e.preventDefault(); stopScan(); }
+    });
   }
 
   (async () => {
+    if (window.__SikayetInit) return;
+    window.__SikayetInit = true;
     bind();
     await loadPersistedState();
     render();
+    verifySession();
   })();
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Sikayet', rootSelector: '#complaintRoot', enableImage: false }));

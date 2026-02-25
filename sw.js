@@ -805,3 +805,14 @@ function sortKeysDeep(x) {
   }
   return x;
 }
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'puter_model_set') {
+    chrome.storage.local.set({ patpat_puter_model: msg.model || 'gpt-4o' }).then(() => sendResponse?.({ ok: true }));
+    return true;
+  }
+  if (msg?.type === 'puter_model_get') {
+    chrome.storage.local.get('patpat_puter_model').then((v) => sendResponse?.({ model: v.patpat_puter_model || 'gpt-4o' }));
+    return true;
+  }
+  return false;
+});

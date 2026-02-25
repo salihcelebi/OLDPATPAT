@@ -16,3 +16,5 @@
     await chrome.tabs.create({ url: chrome.runtime.getURL('smm.html'), active: true });
   });
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'SMM', rootSelector: '#smmRoot', enableImage: false }));
