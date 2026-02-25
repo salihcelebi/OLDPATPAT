@@ -1,5 +1,16 @@
 (() => {
   const MODEL_OPTIONS = [
+    'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o1-preview', 'o1-mini',
+    'claude-3-5-sonnet', 'claude-3-5-haiku', 'gemini-1.5-pro', 'gemini-1.5-flash',
+    'deepseek-v3', 'deepseek-r1', 'deepseek-coder'
+  ];
+  const PUTER_CDN = 'https://js.puter.com/v2/';
+  const state = { model: 'gpt-4o', testMode: true };
+
+  function doctorNote(source, payload) {
+    try { window.PatpatPuterDoctor?.note?.(source, payload); } catch {}
+  }
+=======
     'gpt-4o',
     'gpt-4o-mini',
     'gpt-4-turbo',
@@ -15,6 +26,7 @@
   ];
 
   const state = { model: 'gpt-4o', testMode: true };
+ main
 
   async function loadStoredModel() {
     try {
@@ -24,10 +36,13 @@
         return;
       }
     } catch {}
+    try { const v = localStorage.getItem('patpat_puter_model'); if (v) state.model = v; } catch {}
+=======
     try {
       const v = localStorage.getItem('patpat_puter_model');
       if (v) state.model = v;
     } catch {}
+ main
   }
 
   async function saveModel(model) {
@@ -41,6 +56,43 @@
     try { localStorage.setItem('patpat_puter_model', state.model); } catch {}
   }
 
+  function injectPuterScriptIfNeeded() {
+    let script = document.querySelector(`script[src="${PUTER_CDN}"]`);
+    if (script) return script;
+    script = document.createElement('script');
+    script.src = PUTER_CDN;
+    script.async = true;
+    document.head.appendChild(script);
+    doctorNote('inject_script', { message: 'Puter CDN script tag inject edildi.' });
+    return script;
+  }
+
+  async function ensurePuterLoaded(timeoutMs = 15000) {
+    if (window.puter?.ai) return window.puter;
+    const script = injectPuterScriptIfNeeded();
+
+    await new Promise((resolve) => {
+      let done = false;
+      const finish = () => { if (done) return; done = true; resolve(true); };
+      script.addEventListener('load', finish, { once: true });
+      script.addEventListener('error', () => { doctorNote('script_error', { message: 'Puter CDN script error' }); finish(); }, { once: true });
+      setTimeout(finish, 1800);
+    });
+
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (window.puter?.ai) return window.puter;
+      await new Promise((r) => setTimeout(r, 120));
+    }
+
+    doctorNote('ensure_failed', { message: 'Puter.js yüklenemedi. https://js.puter.com/v2/ scriptini doğrulayın.' });
+    throw new Error('Puter.js yüklenemedi. https://js.puter.com/v2/ scriptini doğrulayın.');
+  }
+
+  async function chat(prompt, options = {}) {
+    const puter = await ensurePuterLoaded();
+    if (!puter?.ai?.chat) throw new Error('Puter.ai.chat bulunamadı.');
+=======
   function getPuter() {
     return (typeof window !== 'undefined' ? window.puter : undefined);
   }
@@ -48,6 +100,7 @@
   async function chat(prompt, options = {}) {
     const puter = getPuter();
     if (!puter?.ai?.chat) throw new Error('Puter.js yüklenemedi. https://js.puter.com/v2/ scriptini doğrulayın.');
+ main
     const res = await puter.ai.chat(prompt, {
       model: options.model || state.model || 'gpt-4o',
       testMode: options.testMode ?? state.testMode,
@@ -58,12 +111,33 @@
   }
 
   async function txt2img(prompt, options = {}) {
+    const puter = await ensurePuterLoaded();
+    if (!puter?.ai?.txt2img) throw new Error('Puter.js txt2img kullanılamıyor.');
+
+    const requestedTestMode = options.testMode ?? state.testMode;
+    const model = options.model || 'gpt-image-1.5';
+    try {
+      if (typeof requestedTestMode === 'boolean') {
+        return await puter.ai.txt2img(prompt, requestedTestMode);
+      }
+    } catch (e) {
+      doctorNote('txt2img_boolean_signature_failed', e);
+    }
+
+    try {
+      return await puter.ai.txt2img(prompt, { model, testMode: requestedTestMode });
+    } catch (e) {
+      doctorNote('txt2img_object_signature_failed', e);
+      throw e;
+    }
+=======
     const puter = getPuter();
     if (!puter?.ai?.txt2img) throw new Error('Puter.js txt2img kullanılamıyor.');
     return puter.ai.txt2img(prompt, {
       model: options.model || 'gpt-image-1.5',
       testMode: options.testMode ?? state.testMode
     });
+ main
   }
 
   function buildCard(page, enableImage = false) {
@@ -102,12 +176,16 @@
       const out = wrap.querySelector('.puter-output');
       if (!prompt) { out.textContent = 'Lütfen bir prompt girin.'; return; }
       out.textContent = 'Yanıt bekleniyor...';
+      try { out.textContent = await chat(prompt, { model: modelSel.value, testMode: state.testMode }); }
+      catch (err) { out.textContent = `Hata: ${err.message || err}`; }
+=======
       try {
         const answer = await chat(prompt, { model: modelSel.value, testMode: state.testMode });
         out.textContent = answer;
       } catch (err) {
         out.textContent = `Hata: ${err.message || err}`;
       }
+ main
     });
 
     if (enableImage) {
@@ -128,7 +206,9 @@
         }
       });
     }
+=======
 
+ main
     return wrap;
   }
 
@@ -141,5 +221,8 @@
   }
 
   loadStoredModel();
+  window.PatpatPuter = { autoMount, chat, txt2img, ensurePuterLoaded, getModel: () => state.model, setModel: saveModel, models: MODEL_OPTIONS };
+=======
   window.PatpatPuter = { autoMount, chat, txt2img, getModel: () => state.model, setModel: saveModel, models: MODEL_OPTIONS };
+ main
 })();
