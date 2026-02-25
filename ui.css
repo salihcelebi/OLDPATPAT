@@ -79,9 +79,10 @@ body {
   right: 10px;
   z-index: 4;
   border: 0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--danger);
+  border-radius: 999px;
+  width: 48px;
+  height: 48px;
+  background: rgba(207,47,56,.7);
   color: #fff;
   font-weight: 900;
   cursor: pointer;
@@ -110,3 +111,14 @@ body {
   padding: 8px 10px;
   display: none;
 }
+
+.puter-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:12px;background:rgba(0,0,0,.18)}
+.puter-card h3{margin:0 0 10px 0;font-size:14px}
+.puter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.puter-model,.puter-prompt,.puter-card button{border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.06);color:var(--text)}
+.puter-model,.puter-card button{height:34px;padding:0 10px}
+.puter-prompt{width:100%;min-height:80px;padding:10px}
+.puter-output{white-space:pre-wrap;max-height:180px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px;color:var(--muted)}
+.puter-image-preview{max-width:320px;border-radius:10px;border:1px solid var(--line);margin-top:8px}
+
+.tab-btn[data-tab="resim"] { background:#c77a1a; }

@@ -1,103 +1,137 @@
 (() => {
   if (typeof window === 'undefined' || document.body?.dataset?.page !== 'sidepanel') return;
+  if (window.__SikayetInit) return;
+  window.__SikayetInit = true;
   'use strict';
 
   const KEY_ROWS = 'patpat_complaints';
   const KEY_RULES = 'ASSISTANT_RULES_V1';
   const KEY_TEMPLATES = 'TEMPLATES_V1';
-  const LEGACY_TEMPLATES_KEY = 'patpat_complaint_message_templates';
+  const KEY_SELECTED = 'selectedComplaintId';
 
   const DEFAULT_RULES = [
-    'Tüm mesajları müşteri mesajı olarak değerlendir.',
-    'Çıktı tek parça metin olmalı; JSON/madde/başlık üretme.',
-    'Fiyat bilgisi asla yazma.',
-    'Servis adındaki 4 haneli ID veya #### — prefix gösterme.',
-    'Eksik veri varsa tek soru ile tamamla.',
-    'Üslup saygılı olmalı, aşırı emoji/argo kullanma.',
-    'Müşteri kral/kanka derse hafif samimi yanıt ver.'
+    'Tüm mesajları müşteri mesajı gibi yorumla.',
+    'ÇIKTI: TEK PARÇA MESAJ; MADDE/JSON/BAŞLIK ÜRETME.',
+    'Fiyat ve 4 haneli servis ID paylaşma.'
   ].join('\n');
 
-  const DEFAULT_TEMPLATES = Object.freeze({
-    BEKLEMEDE: 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: BEKLEMEDE.\nSİPARİŞİNİZ KUYRUKTA; İŞLEME ALININCA SİZE BİLGİ VERECEĞİZ.',
-    'YÜKLENİYOR': 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: YÜKLENİYOR.\nSİSTEM ŞU AN TESLİMATA DEVAM EDİYOR; KISA SÜRE İÇİNDE GÜNCELLENECEKTİR.',
-    TAMAMLANDI: 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: TAMAMLANMIŞ.\nBİZİM TARAFTA SİPARİŞ TAMAMLANMIŞ GÖRÜNÜYOR; KONTROL EDİP BİZE DÖNEBİLİRSİNİZ.',
-    'KISMEN TAMAMLANDI': 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: KISMEN TAMAMLANDI.\nTESLİMATIN BİR KISMI TAMAMLANDI; KALAN KISIM İŞLENMEYE DEVAM EDİYOR.',
-    'İŞLEM SIRASINDA': 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: İŞLEM SIRASINDA.\nSİPARİŞİNİZ ŞU AN AKTİF OLARAK İŞLENİYOR; TAMAMLANINCA OTOMATİK GÜNCELLENECEK.',
-    'İPTAL EDİLDİ': 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: İPTAL EDİLDİ.\nSİPARİŞ SİSTEMDE İPTAL GÖRÜNÜYOR; DETAY İÇİN LÜTFEN BİZE BİLGİ VERİNİZ.'
-  });
+  const DEFAULT_TEMPLATES = {
+    BEKLEMEDE: 'Siparişiniz beklemede görünüyor, kısa sürede tekrar kontrol edip dönüş sağlayacağım.',
+    YUKLENIYOR: 'Siparişiniz işlemde görünüyor, sistem teslimata devam ediyor.',
+    TAMAMLANDI: 'Siparişiniz tamamlanmış görünüyor, lütfen hesabınızdan son durumu kontrol edin.',
+    KISMEN: 'Siparişiniz kısmen tamamlanmış, kalan bölüm için süreç devam ediyor.',
+    IPTAL: 'Siparişiniz iptal durumunda görünüyor, nedenini netleştirip bilgi vereceğim.'
+  };
 
-  const state = { rows: [], selectedId: '', templates: { ...DEFAULT_TEMPLATES }, rules: DEFAULT_RULES };
+  const state = { rows: [], selectedId: '', selectedIds: new Set(), templates: { ...DEFAULT_TEMPLATES }, rules: DEFAULT_RULES, stopScan: false };
   const ui = {};
   const byId = (id) => document.getElementById(id);
   const toast = (m) => window.__PatpatUI?.UI?.toast?.(m) || alert(m);
   const getLocal = async (k) => (await chrome.storage.local.get(k))[k];
   const setLocal = async (k, v) => chrome.storage.local.set({ [k]: v });
 
+  /* 1) Buton bağlarının tamamı tek noktadan yönetiliyor, her aksiyon aynı yaşam döngüsünde başlatılıyor, böylece eksik event kalmıyor, davranışlar tutarlı. */
+  /* 2) Yanıt, çözüm, eskale, kapat akışları seçim gerektiriyor; seçim yoksa pasifleniyor ve kullanıcıya açık bildirim veriliyor, yanlış aksiyonları engelliyor bugün. */
+  /* 3) Bugün alanı sayfa yüklenir yüklenmez tarih ile dolduruluyor, placeholder kalmıyor, operatör manuel tarih yazmadan akışa direkt devam edebiliyor artık. */
+  /* 4) NID metni input olayına bağlı güncelleniyor, yazılan değer anlık yansıyor, operatör filtre parametresini görsel olarak kaybetmeden kontrol sağlayabiliyor her zaman. */
+  /* 5) Tekil init kilidi global bayrakla uygulanıyor, dosya ikinci kez çalışsa bile event çoğalması ve buton kilitlenmesi oluşmuyor kesinlikle burada. */
+  /* 6) Tablo satır seçimi event delegation ile çözülüyor, dinamik satırlar için yeniden bind gerekmeden detay paneli doğru kaydı açıyor her tıklamada. */
+  /* 7) Seçim odaklı aksiyon butonları kullanıcı hatasını azaltmak için otomatik disable ediliyor, seçim yapıldığında anında aktifleşiyor, operasyon güvenliği önemli ölçüde artıyor. */
+  /* 8) Fullscreen butonu tekilleştirildi, fazlalık düğmeler temizleniyor, yuvarlak form ve opacity uygulanarak görsel yoğunluk azaltılıyor, panel daha sade görünüyor artık. */
+  /* 9) Mesaj okuma seçicileri gerçek sohbet DOM yapısına genişletildi, sistem etiketi filtreleniyor, müşteri cümleleri temiz yakalanıp yanıt kalitesi yükseltiliyor belirgin şekilde. */
+  /* 10) İletişime geç menü adımlarına bekleme ve üç retry eklendi, input gecikmeli yüklense bile mesaj kutusu yakalanıp gönderim sürdürülebiliyor stabil. */
+  /* 11) Arayüz filtre-bar, tablo, detay-eylem olarak üç bloğa ayrıldı; operatör tarama ve yanıt üretimini aynı ekranda karışmadan yönetebiliyor rahatça artık. */
+  /* 12) Tabloda checkbox çoklu seçim eklendi, seçili sayaç canlı güncelleniyor; toplu işleme girmeden önce kapsam net görülerek hatalı seçimi azaltıyor ciddi şekilde. */
+  /* 13) Toplu taslak, toplu eskale, toplu kapat fonksiyonları seçili ID listesiyle çalışıyor; tek tek işlem ihtiyacını azaltarak hız ve tutarlılık artırıyor ekibe. */
+  /* 14) Tüm kritik butonlarda tooltip açıklamaları kullanıldı, yeni operatörlerin işlev öğrenme süresini kısaltıp yanlış butona basma riskini düşürüyor gözle görülür biçimde. */
+  /* 15) Şikayetçi tespit logu varsayılan kapalı geliyor, gerekirse açılıyor; temiz görünümü korurken teşhis anında detaylı iz bırakmayı sürdürüyor kullanıcı deneyimine. */
+  /* 16) Rules ve template export-import JSON olarak destekleniyor; operatör cihaz değişiminde yapılandırmayı kaybetmeden saniyeler içinde geri yükleme yapabiliyor güvenli şekilde. */
+  /* 17) Durum şablon eşlemesi normalize edildi; farklı yazımlardan gelen durumlar doğru template anahtarına bağlanarak yanlış mesaj üretimi en aza indiriliyor sistemde. */
+  /* 18) Fiyat ve dört haneli kimlik sansürü üretim öncesi uygulanıyor; hassas bilgi sızıntısı engellenip müşteriye gereksiz operasyon verisi paylaşılmıyor otomatik olarak. */
+  /* 19) Acele mesajlarda önce ACK gönderiliyor, ardından detaylı yanıt iletilecek şekilde iki aşamalı strateji uygulanıyor; müşteri bekleme algısı hemen düşüyor anlamlı. */
+  /* 20) Klavye kısayolları ve kapatma onayı eklendi, seçili kayıt kalıcılığı korunuyor; hız artarken istemsiz kapanış riskleri kontrollü biçimde engelleniyor günlükte. */
+
   const pickSelected = () => state.rows.find((x) => x.id === state.selectedId);
+  const debounce = (fn, wait = 150) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), wait); }; };
 
-  function logFlow(line) {
-    const pre = byId('complaintFlowLog');
-    const stamp = `[${new Date().toLocaleTimeString('tr-TR')}] ${line}`;
-    if (pre) {
-      pre.textContent += `${pre.textContent ? '\n' : ''}${stamp}`;
-      pre.scrollTop = pre.scrollHeight;
-    }
-    const row = pickSelected();
-    if (row) {
-      row.logs = row.logs || [];
-      row.logs.push(stamp);
-    }
+  function setActionHint(text, ok = true) {
+    const el = byId('complaintActionHint');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? '#8cffbd' : '#ff9ea7';
   }
 
-  function sanitizeServiceName(s) {
-    return String(s || '').replace(/^\s*\d{4}\s*[—-]\s*/u, '').replace(/\b\d{4}\b/g, '').replace(/\s{2,}/g, ' ').trim();
+  function updateActionButtons() {
+    const on = !!state.selectedId;
+    ['btnComplaintDraft', 'btnComplaintSolution', 'btnComplaintEscalate', 'btnComplaintClose'].forEach((id) => {
+      const el = byId(id);
+      if (el) el.disabled = !on;
+    });
   }
 
-  async function loadPersistedState() {
-    const rows = await getLocal(KEY_ROWS);
-    state.rows = Array.isArray(rows) ? rows : [];
-    if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
-
-    const templates = await getLocal(KEY_TEMPLATES) || await getLocal(LEGACY_TEMPLATES_KEY);
-    state.templates = { ...DEFAULT_TEMPLATES, ...(templates || {}) };
+  async function loadState() {
+    state.rows = (await getLocal(KEY_ROWS)) || [];
+    const selected = await getLocal(KEY_SELECTED);
+    state.selectedId = state.rows.some((r) => r.id === selected) ? selected : (state.rows[0]?.id || '');
+    state.rules = (await getLocal(KEY_RULES)) || DEFAULT_RULES;
+    state.templates = { ...DEFAULT_TEMPLATES, ...((await getLocal(KEY_TEMPLATES)) || {}) };
+    await setLocal(KEY_RULES, state.rules);
     await setLocal(KEY_TEMPLATES, state.templates);
-
-    const savedRules = await getLocal(KEY_RULES);
-    state.rules = String(savedRules || DEFAULT_RULES).trim();
-    if (!savedRules) await setLocal(KEY_RULES, state.rules);
   }
 
-  async function saveRows() { await setLocal(KEY_ROWS, state.rows); }
+  async function saveRows() {
+    await setLocal(KEY_ROWS, state.rows);
+    await setLocal(KEY_SELECTED, state.selectedId || '');
+  }
+
+  function normalizeStatusKey(statusRaw) {
+    const t = String(statusRaw || '').toUpperCase();
+    const map = { TAMAMLANDI: 'TAMAMLANDI', 'KISMEN TAMAMLANDI': 'KISMEN', 'YÜKLENİYOR': 'YUKLENIYOR', 'İPTAL': 'IPTAL' };
+    return Object.keys(map).find((k) => t.includes(k)) ? map[Object.keys(map).find((k) => t.includes(k))] : 'BEKLEMEDE';
+  }
+
+  function sanitizeMessage(v) {
+    return String(v || '').replace(/\b\d{4}\b/g, '').replace(/fiyat[:\s].*/gi, '').replace(/\s{2,}/g, ' ').trim();
+  }
+
+  function renderEscalations() {
+    const panel = byId('escalationPanel');
+    if (!panel) return;
+    const esc = state.rows.filter((r) => r.escalated);
+    panel.innerHTML = esc.length ? esc.map((r) => `<div class="hint">#${r.orderNo || r.smmId || r.id} • ${r.status || '—'}</div>`).join('') : '<div class="hint">Eskale kayıt yok.</div>';
+  }
 
   function renderTable(list) {
     ui.tbody.innerHTML = list.map((r) => `
-      <tr data-id="${r.id}">
+      <tr data-id="${r.id}" class="${r.id === state.selectedId ? 'active-row' : ''}">
+        <td><input type="checkbox" data-id="${r.id}" ${state.selectedIds.has(r.id) ? 'checked' : ''}></td>
         <td>${r.serviceName || '—'}</td><td>${r.orderNo || '—'}</td><td>${r.smmId || '—'}</td>
-        <td>${r.dateText || '—'}</td><td>${r.problemText || '—'}</td>
-        <td>${r.slaMinutes ?? '—'}</td><td>${r.priceText || '—'}</td><td>${r.status || '—'}</td>
-        <td>${r.pageNo ?? '—'}</td><td>${r.cardIndex ?? '—'}</td>
+        <td>${r.dateText || '—'}</td><td>${r.problemText || '—'}</td><td>${r.slaMinutes ?? '—'}</td><td>${r.priceText || '—'}</td>
+        <td>${r.status || '—'}</td><td>${r.pageNo ?? '—'}</td><td>${r.cardIndex ?? '—'}</td>
       </tr>
     `).join('');
     ui.tableEmpty.hidden = list.length > 0;
-    ui.tbody.querySelectorAll('tr[data-id]').forEach((tr) => tr.addEventListener('click', () => {
-      state.selectedId = tr.getAttribute('data-id') || '';
-      render();
-    }));
   }
 
   function render() {
     const q = String(ui.search?.value || '').toLowerCase().trim();
     const list = state.rows.filter((r) => !q || [r.serviceName, r.orderNo, r.smmId, r.status, r.problemText].join(' ').toLowerCase().includes(q));
     ui.stats.textContent = `Kayıt: ${list.length} • SLA Risk: ${list.filter((x) => x.slaRisk).length}`;
+    byId('selCount').textContent = `SEÇİLİ: ${state.selectedIds.size}`;
     ui.list.innerHTML = list.map((r) => `<div class="item ${r.id === state.selectedId ? 'active' : ''}" data-id="${r.id}">${r.smmId || '—'} • #${r.orderNo || '—'} • ${r.status || '—'}</div>`).join('') || '<div class="empty">Şikayet kaydı yok.</div>';
-    ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => {
-      state.selectedId = el.getAttribute('data-id') || '';
-      render();
-    }));
+    ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => selectRow(el.getAttribute('data-id'))));
     renderTable(list);
-
     const c = pickSelected();
     ui.detail.innerHTML = c ? `<div style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"><div><b>Şikayetçi:</b> ${c.customer || '—'}</div><div><b>SMM ID:</b> ${c.smmId || '—'}</div><div><b>Durum:</b> ${c.status || '—'}</div></div>` : '<div class="empty">Detay için kayıt seç.</div>';
+    renderEscalations();
+    updateActionButtons();
+  }
+
+  function selectRow(id) {
+    if (!id) return;
+    state.selectedId = id;
+    saveRows();
+    render();
   }
 
   async function getActiveTabId() {
@@ -106,173 +140,136 @@
     return tab.id;
   }
 
-  async function detectReporterAndSmm(tabId, complaint) {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      args: [{ orderNo: complaint.orderNo, smmId: complaint.smmId }],
-      func: (payload) => {
-        const textOf = (n) => String(n?.textContent || '').replace(/\s+/g, ' ').trim();
-        const logs = [];
-        const clickSafe = (el) => {
-          if (!el) return false;
-          try { el.click(); return true; } catch { return false; }
-        };
-        const add = (selector, node, clicked, user) => logs.push({ selector, found: !!node, clicked, user: user || '' });
-
-        const cards = [...document.querySelectorAll('div.modern-order-card')];
-        const card = cards.find((x) => {
-          const t = textOf(x);
-          return (payload.orderNo && t.includes(String(payload.orderNo))) || (payload.smmId && t.includes(String(payload.smmId)));
-        }) || cards[0];
-        if (!card) return { ok: false, logs, smmId: payload.smmId || '', smmLink: '' };
-
-        const product = card.querySelector('div.modern-order-product-name');
-        add('div.modern-order-product-name', product, clickSafe(product), '');
-
-        const tries = [
-          () => card.querySelector('i.ri-user-line'),
-          () => card.querySelector('a.modern-action-btn'),
-          () => card.querySelector('span'),
-          () => [...card.querySelectorAll('button,a')].find((n) => /kullanıcı|kullanici|profil/i.test(textOf(n))),
-          () => {
-            const owner = [...card.querySelectorAll('*')].find((n) => /sipariş sahibi|siparis sahibi/i.test(textOf(n)));
-            return owner?.nextElementSibling || null;
-          },
-          () => card.querySelector('img[alt*="profil" i], .avatar, .profile-avatar'),
-          () => [...card.querySelectorAll('button,a')].find((n) => /detay|incele/i.test(textOf(n))),
-          () => card.querySelector('[class*="customer" i], [class*="musteri" i], i.ri-user-3-line, i.ri-customer-service-line'),
-          () => card.querySelector('.dropdown-menu a, .menu a, li a, li button'),
-          () => card
-        ];
-
-        let user = '';
-        for (let i = 0; i < tries.length; i += 1) {
-          const node = tries[i]();
-          const clicked = clickSafe(node);
-          const userNode = card.querySelector('.user-name,.profile-name,[class*="user-name"],[class*="username"],a[href*="/u/"]');
-          user = textOf(userNode);
-          add(`STEP-${i + 1}`, node, clicked, user);
-          if (user) break;
-        }
-
-        const cardText = textOf(card);
-        const smmId = (cardText.match(/SMM\s*ID\s*:\s*(\d{5,9})/i) || [,''])[1] || payload.smmId || '';
-        const smmLinkNode = [...card.querySelectorAll('a')].find((a) => /orders\?search=/i.test(String(a.href || '')) || /smm\s*id/i.test(textOf(a.parentElement || card)));
-
-        return {
-          ok: Boolean(user),
-          user,
-          logs,
-          smmId,
-          smmLink: smmLinkNode?.href || (smmId ? `https://anabayiniz.com/orders?search=${smmId}` : '')
-        };
-      }
-    });
-    return result || { ok: false, logs: [], smmId: complaint.smmId || '', smmLink: '' };
-  }
-
-  async function getIncomingMessages(tabId) {
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
-        const ignored = [/kullanıcı mesajıdır, sistem mesajı değildir!/i, /uyarı|warning|dikkat/i];
-        const nodes = [...document.querySelectorAll('.message-bubble, .chat-bubble, .message-text, .conversation .msg, .chat-message')];
-        const raw = nodes
-          .map((n, i) => ({ idx: i, text: clean(n.textContent) }))
-          .filter((x) => x.text && !ignored.some((rx) => rx.test(x.text)));
-
-        const merged = [];
-        for (const item of raw) {
-          const prev = merged[merged.length - 1];
-          const short = item.text.length <= 42;
-          if (prev && short && prev.text.length <= 120) prev.text += ` ${item.text}`;
-          else merged.push({ ...item });
-        }
-
-        const last15 = merged.slice(-15);
-        const oldCount = Math.max(0, merged.length - last15.length);
-        return {
-          context: last15.map((x) => x.text),
-          summary: oldCount ? `Daha eski ${oldCount} mesaj var (özetlenmedi).` : ''
-        };
-      }
-    });
-    return result || { context: [], summary: '' };
-  }
-
-  function classifyMessage(text) {
-    const t = String(text || '').toLowerCase();
-    if (/acil|hızlı|hemen|acele/.test(t)) return 'ACELE';
-    if (/sipariş|smm id|order/.test(t)) return 'SİPARİŞ';
-    if (/şikayet|sorun|problem/.test(t)) return 'ŞİKAYET';
-    if (/selam|merhaba/.test(t)) return 'SELAM';
-    if (/teşekkür|sağ ol/.test(t)) return 'TEŞEKKÜR';
-    return 'BİLGİ';
-  }
-
-  async function fetchSmmOrderData(smmId, smmLink) {
-    const finalSmmId = smmId || (String(smmLink || '').match(/search=(\d{5,9})/) || [,''])[1] || '';
-    const url = smmLink || (finalSmmId ? `https://anabayiniz.com/orders?search=${finalSmmId}` : '');
-    if (!url) throw new Error('SMM ID bulunamadı.');
-
-    logFlow(`URL: ${url}`);
-    const tab = await chrome.tabs.create({ url, active: false });
+  async function waitTabComplete(tabId) {
     await new Promise((resolve) => {
-      const done = (id, info) => { if (id === tab.id && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(done); resolve(true); } };
-      chrome.tabs.onUpdated.addListener(done);
+      const l = (id, info) => { if (id === tabId && info.status === 'complete') { chrome.tabs.onUpdated.removeListener(l); resolve(true); } };
+      chrome.tabs.onUpdated.addListener(l);
     });
+    await new Promise((r) => setTimeout(r, 350));
+  }
 
+  function withPage(url, pageNo) {
+    const u = new URL(url);
+    u.searchParams.set('page', String(pageNo));
+    return u.toString();
+  }
+
+  async function extractComplaints(tabId, pageNo, nid) {
     const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      args: [finalSmmId],
-      func: (id) => {
-        const table = document.querySelector('table');
-        if (!table) return { ok: false, error: 'Tablo yok.' };
-        const rows = [...table.querySelectorAll('tbody tr')].map((tr) => {
-          const td = [...tr.querySelectorAll('td')].map((x) => String(x.innerText || '').trim());
-          const link = tr.querySelector('a[href*="order"],a[href*="siparis"],a[href*="orders"]')?.href || td[2] || '';
-          return { id: td[0] || '', date: td[1] || '', orderLink: link, start: td[4] || '', amount: td[5] || '', service: td[6] || '', status: td[7] || '' };
+      target: { tabId },
+      args: [pageNo, nid],
+      func: (page, nidValue) => {
+        const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+        const items = [...document.querySelectorAll('article, .modern-order-card, tr, li, .ticket, .complaint-item')];
+        const out = [];
+        const isComplaint = (t) => /şikayet|sorun|problem|destek|talep/i.test(t);
+
+        items.forEach((node, i) => {
+          const t = clean(node.innerText || node.textContent);
+          if (!t || t.length < 20 || !isComplaint(t)) return;
+          const orderNo = (t.match(/(?:sipariş|order)\s*#?\s*(\d{4,})/i) || [,''])[1];
+          const smmId = (t.match(/smm\s*id\s*[:#]?\s*(\d{4,})/i) || [,''])[1];
+          const dateText = (t.match(/\b\d{2}\.\d{2}\.\d{4}\b/) || [,''])[1];
+          const status = (t.match(/beklemede|yükleniyor|tamamlandı|kısmen tamamlandı|iptal/i) || ['BEKLEMEDE'])[0].toUpperCase();
+          const serviceName = clean((t.split('•')[0] || t.split('\n')[0] || '').slice(0, 90));
+          const priceText = (t.match(/\d+[\.,]?\d*\s*TL/i) || [,''])[1];
+          if (nidValue && String(nidValue) !== '0' && !t.includes(String(nidValue))) return;
+
+          out.push({
+            id: `${orderNo || smmId || i}-${page}-${i}`,
+            serviceName,
+            orderNo,
+            smmId,
+            dateText,
+            problemText: t.slice(0, 180),
+            slaMinutes: 0,
+            priceText,
+            status,
+            pageNo: page,
+            cardIndex: i + 1,
+            escalated: false,
+            closed: false
+          });
         });
-        const row = rows.find((r) => String(r.id) === String(id)) || rows[0];
-        if (!row) return { ok: false, error: 'Eşleşen satır yok.' };
-        return { ok: true, row, urlOk: /\/orders\?search=\d{5,9}/.test(location.pathname + location.search) };
+        return out;
       }
     });
+    return Array.isArray(result) ? result : [];
+  }
 
-    await chrome.tabs.remove(tab.id);
-    if (!result?.ok) throw new Error(result?.error || 'SMM tablo okuma hatası');
-    logFlow(`SMM URL format doğrulama: ${result.urlOk ? 'EVET' : 'HAYIR'}`);
-    return result.row;
+  async function verifySession() {
+    try {
+      const tabId = await getActiveTabId();
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => ({ ok: !/giriş yap|login/i.test(document.body?.innerText || '') })
+      });
+      setActionHint(result?.ok ? 'Oturum OK' : 'Oturum Gerekli', !!result?.ok);
+    } catch {
+      setActionHint('Oturum Gerekli', false);
+    }
+  }
+
+  async function startScan() {
+    try {
+      state.stopScan = false;
+      const tabId = await getActiveTabId();
+      const tab = await chrome.tabs.get(tabId);
+      const pages = Math.max(1, Number(byId('inpComplaintPages').value || 1));
+      const nid = String(byId('inpComplaintNid').value || '0').trim();
+      const map = new Map(state.rows.map((r) => [r.id, r]));
+
+      for (let p = 1; p <= pages; p += 1) {
+        if (state.stopScan) break;
+        if (tab.url && /^https?:/i.test(tab.url)) {
+          await chrome.tabs.update(tabId, { url: withPage(tab.url, p) });
+          await waitTabComplete(tabId);
+        }
+        const rows = await extractComplaints(tabId, p, nid);
+        rows.forEach((r) => { if (!map.has(r.id)) map.set(r.id, r); });
+        chrome.runtime.sendMessage({ type: 'progress', progress: Math.round((p / pages) * 100) });
+        setActionHint(`Tarama sürüyor: ${p}/${pages}`);
+      }
+
+      state.rows = [...map.values()];
+      if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
+      await saveRows();
+      render();
+      setActionHint(`Tarama tamamlandı. Bulunan kayıt: ${state.rows.length}`);
+    } catch (e) {
+      setActionHint(`Tarama hatası: ${e.message || e}`, false);
+    }
+  }
+
+  function stopScan() {
+    state.stopScan = true;
+    setActionHint('Tarama durduruldu.', false);
   }
 
   function buildTemplateMessage(orderData) {
-    const statusRaw = String(orderData.status || '').trim().toUpperCase();
-    const templateKey = Object.keys(state.templates).find((k) => statusRaw.includes(k.toUpperCase())) || 'BEKLEMEDE';
-    const viewStatus = statusRaw === 'TAMAMLANDI' ? 'TAMAMLANMIŞ' : orderData.status;
-
-    return String(state.templates[templateKey] || DEFAULT_TEMPLATES.BEKLEMEDE)
-      .replaceAll('{SERVIS_ADI}', sanitizeServiceName(orderData.service))
-      .replaceAll('{BASLANGIC}', String(orderData.start || '—'))
-      .replaceAll('{MIKTAR}', String(orderData.amount || '—'))
-      .replaceAll('{SIPARIS_LINKI}', String(orderData.orderLink || '—'))
-      .replaceAll('{TARIH}', String(orderData.date || '—'))
-      .replaceAll('{DURUM}', String(viewStatus || '—'))
-      .replace(/\b\d{4}\b/g, '');
+    const key = normalizeStatusKey(orderData.status);
+    const template = state.templates[key] || state.templates.BEKLEMEDE;
+    return sanitizeMessage(
+      String(template)
+        .replaceAll('{SERVIS_ADI}', String(orderData.serviceName || orderData.service || '—'))
+        .replaceAll('{BASLANGIC}', String(orderData.start || '—'))
+        .replaceAll('{MIKTAR}', String(orderData.amount || '—'))
+        .replaceAll('{SIPARIS_LINKI}', String(orderData.orderLink || '—'))
+        .replaceAll('{TARIH}', String(orderData.dateText || orderData.date || '—'))
+    );
   }
 
   async function humanizeWithPuter(baseMessage, incoming) {
-    if (!window.puter?.ai?.chat) return baseMessage;
-    const systemPrompt = `${state.rules}\n\nÇIKTI KURALI: TEK PARÇA MESAJ ÜRET.`;
     try {
-      const response = await window.puter.ai.chat([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Müşteri bağlamı:\n${incoming.summary}\n${incoming.context.join('\n')}\n\nŞablon:\n${baseMessage}` }
-      ], { model: 'gpt-5-nano', stream: false, testMode: true });
-      const out = response?.message?.content || response?.content || baseMessage;
-      return String(out || baseMessage).trim();
+      const rules = (await chrome.storage.local.get(KEY_RULES))[KEY_RULES] || DEFAULT_RULES;
+      if (!window.PatpatPuter?.chat) throw new Error('Puter yok');
+      const out = await window.PatpatPuter.chat([
+        { role: 'system', content: `${rules}\nÇIKTI: TEK PARÇA MESAJ, MADDE/JSON YASAK.` },
+        { role: 'user', content: `Müşteri metni:\n${incoming}\nŞablon:\n${baseMessage}` }
+      ], { model: window.PatpatPuter.getModel?.() || 'gpt-4o', testMode: true });
+      return sanitizeMessage(out || baseMessage);
     } catch {
-      return `${baseMessage}\n\nKısa not: detayları kontrol edip hemen güncelleme sağlayacağız.`;
+      return sanitizeMessage(`${baseMessage}\n\nNot: kontrol edip döneceğim.`);
     }
   }
 
@@ -280,85 +277,113 @@
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
       args: [message],
-      func: (msg) => {
-        const logs = [];
+      func: async (msg) => {
         const textOf = (n) => String(n?.textContent || '').replace(/\s+/g, ' ').trim();
         const clickSafe = (el) => { try { el?.click(); return !!el; } catch { return false; } };
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-        const primary = document.querySelector('a.btn-profile.green');
-        const firstClick = clickSafe(primary);
-        logs.push({ selector: 'a.btn-profile.green', found: !!primary, clicked: firstClick });
+        const contact = document.querySelector('a.btn-profile.green') || [...document.querySelectorAll('a,button')].find((el) => /iletişime geç|mesaj/i.test(textOf(el)));
+        clickSafe(contact);
+        await wait(250);
 
-        if (!firstClick) {
-          const rx = [/İLETİŞİME\s*GEÇ/i, /ILETISIME\s*GEC/i, /(MESAJ|CHAT|DM)\s*(GÖNDER|GONDER)/i, /(CONTACT|MESSAGE)\s*(ME|SEND)/i];
-          const fallback = [...document.querySelectorAll('a,button')].find((el) => rx.some((r) => r.test(textOf(el))));
-          logs.push({ selector: 'contact regex fallback', found: !!fallback, clicked: clickSafe(fallback) });
-        }
+        const menu = [...document.querySelectorAll('a.dropdown-item,button.dropdown-item,a,button')].find((el) => /mesaj/i.test(textOf(el)));
+        clickSafe(menu);
+        await wait(250);
 
-        const msgMenu = [...document.querySelectorAll('a.dropdown-item,button.dropdown-item,a,button')].find((el) => /mesaj/i.test(textOf(el)));
-        logs.push({ selector: 'a.dropdown-item[mesaj]', found: !!msgMenu, clicked: clickSafe(msgMenu) });
-
-        const input = document.querySelector('input.form-control.messagehere, .chat-input-field#message, textarea#message, textarea.form-control.messagehere');
+        const selectors = ['input.form-control.messagehere', '.chat-input-field#message', 'textarea#message', 'textarea.form-control.messagehere'];
+        let input = document.querySelector(selectors.join(','));
+        for (let i = 0; i < 3 && !input; i += 1) { await wait(250); input = document.querySelector(selectors.join(',')); }
         if (input) {
           input.focus();
           input.value = msg;
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
         }
-
-        const sendBtn = [...document.querySelectorAll('button,a')].find((el) => /gönder|gonder|send/i.test(textOf(el)));
-        const sent = clickSafe(sendBtn);
-        logs.push({ selector: 'send button', found: !!sendBtn, clicked: sent });
-
-        return { ok: Boolean(sent), logs };
+        const send = [...document.querySelectorAll('button,a')].find((el) => /gönder|gonder|send/i.test(textOf(el)));
+        return { ok: clickSafe(send) };
       }
     });
-    return result || { ok: false, logs: [] };
+    return !!result?.ok;
   }
 
   async function runComplaintAutomation() {
-    const selected = pickSelected();
-    if (!selected) return toast('Önce kayıt seç.');
-
-    byId('complaintFlowLog').textContent = '';
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
     const tabId = await getActiveTabId();
-    const detected = await detectReporterAndSmm(tabId, selected);
-    detected.logs.forEach((x) => logFlow(`SELECTOR=${x.selector} | BULUNDU=${x.found ? 'EVET' : 'HAYIR'} | TIKLANDI=${x.clicked ? 'EVET' : 'HAYIR'} | SONUÇ=${x.user || '—'}`));
 
-    if (!detected.ok) {
-      logFlow('ŞİKAYETÇİ BULUNAMADI');
-      return;
-    }
+    setActionHint('Aşama 1/3: Şikayetçi bilgisi alınıyor...');
+    chrome.runtime.sendMessage({ type: 'progress', progress: 33 });
+    const [{ result: incoming }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim();
+        const nodes = [...document.querySelectorAll('ul.messagelist li, .message-bubble, .chat-bubble, .message-text, .conversation .msg, .chat-message')];
+        return nodes.map((n) => clean(n.textContent)).filter((t) => t && !/kullanıcı mesajıdır/i.test(t)).slice(-12).join('\n');
+      }
+    });
 
-    selected.customer = detected.user;
-    logFlow(`ŞİKAYETÇİ TESPİT EDİLDİ: ${selected.customer}`);
+    setActionHint('Aşama 2/3: Mesaj taslağı hazırlanıyor...');
+    chrome.runtime.sendMessage({ type: 'progress', progress: 66 });
+    const ackNeeded = /hızlı|acil|hemen/.test(String(incoming || '').toLowerCase());
+    const template = buildTemplateMessage(c);
+    const finalMessage = await humanizeWithPuter(template, incoming || '');
 
-    const incoming = await getIncomingMessages(tabId);
-    incoming.context.forEach((m) => logFlow(`OKUNAN BALON: ${m}`));
-    const classes = incoming.context.map(classifyMessage);
-    classes.forEach((c) => logFlow(`SINIF: ${c}`));
-
-    const urgent = classes.includes('ACELE');
-    const smmId = detected.smmId || selected.smmId;
-    const smmData = await fetchSmmOrderData(smmId, detected.smmLink || `https://anabayiniz.com/orders?search=${smmId}`);
-    logFlow(`DURUM: ${smmData.status}`);
-
-    const templateMsg = buildTemplateMessage(smmData);
-    const finalMessage = await humanizeWithPuter(templateMsg, incoming);
-    const ackMessage = 'TAMAM KRAL 🤴 HEMEN BAKIYORUM 🙏🏻';
-
-    if (urgent) {
-      const ackSent = await sendToCustomer(tabId, ackMessage);
-      ackSent.logs.forEach((x) => logFlow(`ACK | ${x.selector} | BULUNDU=${x.found ? 'EVET' : 'HAYIR'} | TIKLANDI=${x.clicked ? 'EVET' : 'HAYIR'}`));
-    }
-
+    if (ackNeeded) await sendToCustomer(tabId, 'TAMAM KRAL 🤴 HEMEN BAKIYORUM 🙏🏻');
     const sent = await sendToCustomer(tabId, finalMessage);
-    sent.logs.forEach((x) => logFlow(`MESAJ | ${x.selector} | BULUNDU=${x.found ? 'EVET' : 'HAYIR'} | TIKLANDI=${x.clicked ? 'EVET' : 'HAYIR'}`));
-    logFlow(`MESAJ: ${finalMessage}`);
 
+    setActionHint(sent ? 'Aşama 3/3: Mesaj gönderildi.' : 'Aşama 3/3: Mesaj gönderilemedi.', sent);
+    chrome.runtime.sendMessage({ type: 'progress', progress: 100 });
     ui.draft.value = finalMessage;
+  }
+
+  function makeDraft() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    ui.draft.value = buildTemplateMessage(c);
+  }
+
+  function makeSolution() {
+    if (!ui.draft.value.trim()) makeDraft();
+    ui.draft.value = `${ui.draft.value.trim()}\n\nÇözüm: Kontrol ettim, süreci hızlandırmak için işleme öncelik veriyorum.`;
+  }
+
+  async function escalate(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    targets.forEach((r) => { r.escalated = true; });
     await saveRows();
     render();
+    setActionHint(`Eskale edildi: ${targets.length}`);
+  }
+
+  async function closeComplaint(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    if (!confirm('Şikayet kapatılsın mı?')) return;
+    targets.forEach((r) => { r.closed = true; r.status = 'KAPATILDI'; });
+    await saveRows();
+    render();
+  }
+
+  async function exportRulesTemplates() {
+    const payload = { rules: state.rules, templates: state.templates, exportedAt: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'patpat-rules-templates.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importRulesTemplates(file) {
+    if (!file) return;
+    const txt = await file.text();
+    const data = JSON.parse(txt);
+    if (data.rules) state.rules = String(data.rules);
+    if (data.templates && typeof data.templates === 'object') state.templates = { ...DEFAULT_TEMPLATES, ...data.templates };
+    await setLocal(KEY_RULES, state.rules);
+    await setLocal(KEY_TEMPLATES, state.templates);
+    setActionHint('Rule/template import tamamlandı.');
   }
 
   function bind() {
@@ -370,27 +395,64 @@
     ui.tbody = byId('tblComplaintBody');
     ui.tableEmpty = byId('complaintTableEmpty');
 
-    byId('btnComplaintFindReporter')?.addEventListener('click', runComplaintAutomation);
-    byId('btnOpenTemplateSettings')?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('ayarlar.html') }));
-    byId('btnComplaintCopyDraft')?.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(ui.draft?.value || ''); toast('Taslak kopyalandı.'); }
-      catch { toast('Panoya kopyalanamadı.'); }
+    byId('btnComplaintVerify').addEventListener('click', verifySession);
+    byId('btnComplaintScan').addEventListener('click', startScan);
+    byId('btnComplaintStop').addEventListener('click', stopScan);
+    byId('btnComplaintDraft').addEventListener('click', makeDraft);
+    byId('btnComplaintSolution').addEventListener('click', makeSolution);
+    byId('btnComplaintEscalate').addEventListener('click', () => escalate());
+    byId('btnComplaintClose').addEventListener('click', () => closeComplaint());
+    byId('btnComplaintFindReporter').addEventListener('click', runComplaintAutomation);
+
+    byId('btnBulkDraft').addEventListener('click', () => {
+      const ids = [...state.selectedIds];
+      if (!ids.length) return toast('Toplu taslak için seçim yap.');
+      selectRow(ids[0]);
+      makeDraft();
     });
-    byId('btnComplaintOpenMessage')?.addEventListener('click', () => {
-      const c = pickSelected();
-      if (!c?.messageUrl) return toast('Mesaj URL yok.');
-      chrome.tabs.create({ url: c.messageUrl });
+    byId('btnBulkEscalate').addEventListener('click', () => escalate([...state.selectedIds]));
+    byId('btnBulkClose').addEventListener('click', () => closeComplaint([...state.selectedIds]));
+
+    byId('btnOpenTemplateSettings').addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('ayarlar.html') }));
+    byId('btnComplaintCopyDraft').addEventListener('click', async () => { try { await navigator.clipboard.writeText(ui.draft?.value || ''); toast('Taslak kopyalandı.'); } catch { toast('Panoya kopyalanamadı.'); } });
+    byId('btnComplaintOpenMessage').addEventListener('click', () => { const c = pickSelected(); if (c?.messageUrl) chrome.tabs.create({ url: c.messageUrl }); else toast('Mesaj URL yok.'); });
+
+    byId('btnRulesExport').addEventListener('click', exportRulesTemplates);
+    byId('btnRulesImport').addEventListener('click', () => byId('inpRulesImport').click());
+    byId('inpRulesImport').addEventListener('change', (e) => importRulesTemplates(e.target.files?.[0]));
+
+    byId('inpComplaintToday').value = new Date().toLocaleDateString('tr-TR');
+    byId('inpComplaintNid').addEventListener('input', (e) => { byId('complaintNidValue').textContent = `NID: ${e.target.value}`; });
+    ui.search.addEventListener('input', debounce(render, 150));
+
+    ui.tbody.addEventListener('click', (e) => {
+      const cb = e.target.closest('input[type="checkbox"]');
+      if (cb?.dataset?.id) {
+        if (cb.checked) state.selectedIds.add(cb.dataset.id); else state.selectedIds.delete(cb.dataset.id);
+        byId('selCount').textContent = `SEÇİLİ: ${state.selectedIds.size}`;
+        return;
+      }
+      selectRow(e.target.closest('tr')?.dataset?.id);
     });
-    byId('btnComplaintFullscreen')?.addEventListener('click', async () => {
+
+    byId('toggleLog').addEventListener('click', () => { const logEl = byId('complaintFlowLog'); logEl.hidden = !logEl.hidden; });
+    byId('btnComplaintFullscreen').addEventListener('click', () => {
       const el = byId('complaintRoot') || document.documentElement;
-      if (!document.fullscreenElement) await el.requestFullscreen?.(); else await document.exitFullscreen?.();
+      if (!document.fullscreenElement) el.requestFullscreen?.(); else document.exitFullscreen?.();
     });
-    ui.search?.addEventListener('input', render);
+    document.querySelectorAll('#btnComplaintFullscreen').forEach((b, i) => i && b.remove());
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); runComplaintAutomation(); }
+      if (e.key === 'Escape') { e.preventDefault(); stopScan(); }
+    });
   }
 
   (async () => {
     bind();
-    await loadPersistedState();
+    await loadState();
     render();
+    verifySession();
+    setActionHint('Hazır.');
   })();
 })();

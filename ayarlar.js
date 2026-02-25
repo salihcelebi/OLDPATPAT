@@ -71,11 +71,4 @@
   byId('btnSaveTemplates').addEventListener('click', save);
   byId('btnResetTemplates').addEventListener('click', reset);
   load().then(() => setStatus('Ayarlar yüklendi.'));
-=======
-  async function loadAyarlar() {
-    const settings = await window.PatpatStorage.readSettings();
-    return settings;
-  }
-  window.PatpatAyarlar = { loadAyarlar };
- main
 })();
