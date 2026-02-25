@@ -1,4 +1,49 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PATPAT • Ayarlar</title>
+  <style>
+    body{margin:0;font-family:system-ui;background:#0f1630;color:#e8eeff}
+    .wrap{max-width:980px;margin:0 auto;padding:16px}
+    .card{border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;margin-bottom:12px;background:rgba(255,255,255,.04)}
+    textarea{width:100%;min-height:110px;background:#0b1228;color:#e8eeff;border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:10px;font-family:ui-monospace,monospace}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{border:1px solid rgba(255,255,255,.2);background:#18244d;color:#fff;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
+    .hint{font-size:12px;color:#9fb0dd}
+    label{font-weight:700;display:block;margin-bottom:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Şikayet Mesaj Şablon Ayarları</h2>
+    <p class="hint">Şablonlar TEMPLATES_V1, kurallar ASSISTANT_RULES_V1 içinde saklanır.</p>
+
+    <div class="card">
+      <label>ASSISTANT_RULES_V1</label>
+      <textarea id="assistantRules"></textarea>
+    </div>
+
+    <div class="card"><label>BEKLEMEDE</label><textarea id="tpl_BEKLEMEDE"></textarea></div>
+    <div class="card"><label>YÜKLENİYOR</label><textarea id="tpl_YUKLENIYOR"></textarea></div>
+    <div class="card"><label>TAMAMLANDI</label><textarea id="tpl_TAMAMLANDI"></textarea></div>
+    <div class="card"><label>KISMEN TAMAMLANDI</label><textarea id="tpl_KISMEN_TAMAMLANDI"></textarea></div>
+    <div class="card"><label>İŞLEM SIRASINDA</label><textarea id="tpl_ISLEM_SIRASINDA"></textarea></div>
+    <div class="card"><label>İPTAL EDİLDİ</label><textarea id="tpl_IPTAL_EDILDI"></textarea></div>
+
+    <div class="row">
+      <button class="btn" id="btnSaveTemplates">Kaydet</button>
+      <button class="btn" id="btnResetTemplates">Varsayılana Dön</button>
+    </div>
+    <p class="hint" id="ayarlarStatus">Hazır.</p>
+  </div>
+  <script src="ayarlar.js"></script>
+</body>
+</html>
+=======
 <section id="ayarlarRoot">
   <h3>Ayarlar</h3>
   <p>Model seçimi, varsayılan sekme, log seviyesi, maskeleme ve tema ayarları bu modülde yönetilir.</p>
 </section>
+main
