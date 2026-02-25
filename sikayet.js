@@ -394,3 +394,5 @@
     render();
   })();
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Sikayet', rootSelector: '#complaintRoot', enableImage: false }));
