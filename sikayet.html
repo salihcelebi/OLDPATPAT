@@ -3,134 +3,42 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>PATPAT • Şikayet</title>
+  <title>PATPAT • ŞİKAYET</title>
   <style>
-    :root{--bg:#102216;--card:#173323;--line:rgba(255,255,255,.12);--text:#ecfff2;--muted:#b6dec2;--accent:#4fdc8c}
+    :root{--bg:#102216;--card:#173323;--line:rgba(255,255,255,.12);--text:#ecfff2;--muted:#b6dec2;--danger:#cf2f38;--dangerH:#e13e47}
     body{margin:0;background:linear-gradient(180deg,#102216,#122a1b);color:var(--text);font-family:system-ui}
-    .wrap{padding:14px}
-    .tabs{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-    .tabs a{padding:8px 10px;border:1px solid var(--line);border-radius:10px;color:var(--text);text-decoration:none}
-    .tabs a.active{background:color-mix(in oklab,var(--accent) 28%, transparent)}
+    .wrap{padding:14px;position:relative}
     .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .control{display:flex;flex-direction:column;gap:4px;min-width:160px}
-    .control b{font-size:12px;color:var(--muted)}
+    .control{display:flex;flex-direction:column;gap:4px;min-width:150px}
     .btn,input,textarea{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
-    .btn{cursor:pointer}
     textarea{height:auto;padding:10px}
-    .hint,.empty{color:var(--muted);font-size:13px}
-    .grid{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px}
-    .mini{font-size:12px;color:var(--muted)}
+    .btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;min-width:1050px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
     .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
-    table{width:100%;border-collapse:collapse;min-width:1100px}
-    th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
-    thead th{position:sticky;top:0;background:#183525}
-    #complaintRoot:fullscreen{padding:20px;background:#0f2017}
-    .item{margin-bottom:6px;border:1px solid var(--line);border-radius:8px;padding:8px;cursor:pointer}
-    .item.active{border-color:var(--accent);background:rgba(79,220,140,.12)}
-    @media (max-width:1100px){.grid{grid-template-columns:1fr}}
+    .grid{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:12px;background:var(--danger);color:#fff;font-weight:900;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25)}
+    .fs:hover{background:var(--dangerH)}
   </style>
 </head>
 <body data-page="sidepanel">
   <div class="wrap" id="complaintRoot">
-    <div class="tabs">
-      <a href="siparis.html">Sipariş</a>
-      <a href="rakip.html">Rakip</a>
-      <a class="active" href="sikayet.html">Şikayet</a>
-      <a href="smm.html">SMM</a>
-      <a href="sidepanel.html">Ana Panel</a>
-    </div>
-
+    <button class="fs" id="btnComplaintFullscreen" type="button">TAM EKRAN GÖSTER</button>
     <div class="card">
-      <h3>Müşteri Şikayet Yönetimi (Gelişmiş Tarama)</h3>
-
       <div class="row">
-        <div class="control">
-          <b>Kaç sayfa taransın? (Pagination limiti)</b>
-          <input id="inpComplaintPages" type="number" min="1" max="500" value="5"/>
-        </div>
-        <div class="control">
-          <b>Kaç güne bakılsın? (Geriye dönük gün)</b>
-          <input id="inpComplaintDays" type="number" min="1" max="365" value="5"/>
-        </div>
-        <div class="control" style="min-width:190px">
-          <b>Bugün tarihi (otomatik DD.MM.YYYY)</b>
-          <input id="inpComplaintToday" type="text" value="" placeholder="23.02.2026"/>
-        </div>
-        <div class="control" style="min-width:220px">
-          <b>NID hızı (-100..500) anlamı: tarama hız katsayısı</b>
-          <input id="inpComplaintNid" type="range" min="-100" max="500" step="100" value="0"/>
-        </div>
-        <span class="mini">NID: <b id="complaintNidValue">0</b></span>
+        <div class="control"><b>Sayfa</b><input id="inpComplaintPages" type="number" min="1" max="50" value="3"/></div>
+        <div class="control"><b>Bugün</b><input id="inpComplaintToday" type="text" placeholder="gg.aa.yyyy"/></div>
+        <div class="control"><b>Gün Aralığı</b><input id="inpComplaintDays" type="number" min="1" max="60" value="3"/></div>
+        <div class="control"><b>NID</b><input id="inpComplaintNid" type="number" min="-100" max="500" value="0"/></div>
+        <div class="hint" id="complaintNidValue">NID: 0</div>
       </div>
-
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="btnComplaintVerify" type="button">Oturumu Doğrula</button>
-        <button class="btn" id="btnComplaintScan" type="button">Şikayet Tara</button>
-        <button class="btn" id="btnComplaintStop" type="button">Durdur</button>
-        <button class="btn" id="btnComplaintFullscreen" type="button">Tam Ekran</button>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <button class="btn" id="btnComplaintDraft" type="button">Yanıt Taslağı</button>
-        <button class="btn" id="btnComplaintSolution" type="button">Çözüm Öner</button>
-        <button class="btn" id="btnComplaintEscalate" type="button">Yöneticiye Eskale</button>
-        <button class="btn" id="btnComplaintClose" type="button">Şikayeti Kapat</button>
-      </div>
-
-      <div class="row" style="margin-top:8px">
-        <input id="inpComplaintSearch" type="text" placeholder="Ara: hizmet, sipariş no, SMM ID, durum, sorun satırı" style="min-width:320px"/>
-      </div>
-
-      <div class="hint" id="complaintTargetDays">Hedef günler: —</div>
-      <div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div>
-      <div class="hint" id="complaintActionHint">Hazır.</div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintVerify">Oturum Doğrula</button><button class="btn" id="btnComplaintScan">Taramayı Başlat</button><button class="btn" id="btnComplaintStop">Durdur</button></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintDraft">Yanıt Taslağı</button><button class="btn" id="btnComplaintSolution">Çözüm Öner</button><button class="btn" id="btnComplaintEscalate">Yöneticiye Eskale</button><button class="btn" id="btnComplaintClose">Şikayeti Kapat</button></div>
+      <div class="row" style="margin-top:8px"><input id="inpComplaintSearch" type="text" placeholder="Ara: hizmet, sipariş no, SMM ID, durum, sorun satırı" style="min-width:320px"/></div>
+      <div class="hint" id="complaintTargetDays">Hedef günler: —</div><div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div><div class="hint" id="complaintActionHint">Hazır.</div>
     </div>
-
-    <div class="card">
-      <div class="hint">Tablo: Hizmet + Sipariş + SMM ID + Tarih + Sorun satırı + SLA + Fiyat + Durum</div>
-      <div class="tableWrap" style="margin-top:8px">
-        <table>
-          <thead>
-            <tr>
-              <th>Hizmet</th>
-              <th>Sipariş No</th>
-              <th>SMM ID</th>
-              <th>Tarih</th>
-              <th>Sorun Satırı</th>
-              <th>SLA</th>
-              <th>Fiyat</th>
-              <th>Durum</th>
-              <th>Sayfa</th>
-              <th>Kart</th>
-            </tr>
-          </thead>
-          <tbody id="tblComplaintBody"></tbody>
-        </table>
-      </div>
-      <div class="empty" id="complaintTableEmpty" style="margin-top:8px">Henüz tablo verisi yok.</div>
-    </div>
-
-    <div class="card">
-      <div class="grid">
-        <div>
-          <div class="hint">Liste (Hızlı seçim)</div>
-          <div id="complaintsList" style="max-height:320px;overflow:auto"></div>
-        </div>
-        <div>
-          <div class="hint">Detay + Kanıt</div>
-          <div id="complaintDetail" style="min-height:220px"></div>
-        </div>
-        <div>
-          <div class="hint">Eylem</div>
-          <textarea id="complaintDraftText" style="min-height:220px" placeholder="Yanıt taslağı burada oluşur."></textarea>
-          <div class="row" style="margin-top:8px">
-            <button class="btn" id="btnComplaintCopyDraft" type="button">Taslağı Kopyala</button>
-            <button class="btn" id="btnComplaintOpenMessage" type="button">Mesaj Sayfasına Git</button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <div class="card"><div class="tableWrap"><table><thead><tr><th>Hizmet</th><th>Sipariş No</th><th>SMM ID</th><th>Tarih</th><th>Sorun Satırı</th><th>SLA</th><th>Fiyat</th><th>Durum</th><th>Sayfa</th><th>Kart</th></tr></thead><tbody id="tblComplaintBody"></tbody></table></div><div class="empty" id="complaintTableEmpty" style="margin-top:8px">Henüz tablo verisi yok.</div></div>
+    <div class="card"><div class="grid"><div><div class="hint">Liste</div><div id="complaintsList" style="max-height:320px;overflow:auto"></div></div><div><div class="hint">Detay</div><div id="complaintDetail" style="min-height:220px"></div></div><div><div class="hint">Eylem</div><textarea id="complaintDraftText" style="min-height:220px" placeholder="Yanıt taslağı burada oluşur."></textarea><div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintCopyDraft">Taslağı Kopyala</button><button class="btn" id="btnComplaintOpenMessage">Mesaj Sayfasına Git</button></div></div></div></div>
   </div>
   <script src="sikayet.js"></script>
 </body>
