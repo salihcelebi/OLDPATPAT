@@ -1,0 +1,1 @@
+window.PatpatDosyalar = { ready: true };

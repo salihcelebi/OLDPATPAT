@@ -440,3 +440,11 @@
   window.Patpat.Rakip = Rakip;
   Rakip.init();
 })();
+
+
+(()=>{
+  const b=document.getElementById('btnRakipFullscreen');
+  b?.addEventListener('click', async ()=>{
+    await chrome.tabs.create({ url: chrome.runtime.getURL('rakip.html'), active:true });
+  });
+})();
