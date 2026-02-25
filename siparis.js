@@ -293,3 +293,11 @@
   window.Patpat.Siparis = Siparis;
   Siparis.init();
 })();
+
+
+(()=>{
+  const b=document.getElementById('btnSiparisFullscreen');
+  b?.addEventListener('click', async ()=>{
+    await chrome.tabs.create({ url: chrome.runtime.getURL('siparis.html'), active:true });
+  });
+})();
