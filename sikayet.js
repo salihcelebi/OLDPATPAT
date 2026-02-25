@@ -2,234 +2,79 @@
   if (typeof window === 'undefined' || document.body?.dataset?.page !== 'sidepanel') return;
   'use strict';
 
-  const KEY = 'patpat_complaints';
-  const STATUS_BASE = 'https://hesap.com.tr/p/sattigim-ilanlar';
-
-  const RX = Object.freeze({
-    serviceList: [
-      /^([^\n]{6,200})\n\s*(?:Sipariş|Siparis|Order)\s*#?/mi,
-      /(?:Hizmet|Servis)\s*[:\-]\s*([^\n]{4,200})/i,
-      /^([^\n]{6,200})\n\s*SMM\s*(?:ID|İD)\s*[:\-]/mi,
-      /^([^\n]{6,200})\n\s*\d{2}[./-]\d{2}[./-]\d{4}/mi,
-      /İlan\s*Adı\s*[:\-]\s*([^\n]{4,200})/i
-    ],
-    orderList: [
-      /\bSipariş\s*#\s*(\d{5,14})\b/i,
-      /\bSiparis\s*#\s*(\d{5,14})\b/i,
-      /\bOrder\s*#\s*(\d{5,14})\b/i,
-      /\bSipariş\s*No\s*[:\-]\s*(\d{5,14})\b/i,
-      /\bNo\s*[:\-]\s*(\d{5,14})\b/i
-    ],
-    smmList: [
-      /\bSMM\s*ID\s*[:\-]?\s*(\d{4,14})\b/i,
-      /\bSMM\s*İD\s*[:\-]?\s*(\d{4,14})\b/i,
-      /\bSMMID\s*[:\-]?\s*(\d{4,14})\b/i,
-      /\bSMM\s*No\s*[:\-]?\s*(\d{4,14})\b/i,
-      /\bID\s*[:\-]?\s*(\d{4,14})\b/i
-    ],
-    dateList: [
-      /\b(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})\b/,
-      /\b(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2})\b/,
-      /\b(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2})\b/,
-      /\b(\d{2}\.\d{2}\.\d{4})\b/,
-      /\b(\d{2}\/\d{2}\/\d{4})\b/
-    ],
-    problemList: [
-      /(Sorun\s*Bildirildi\s*\([^\n]{2,100}\))/i,
-      /(SORUN\s*BİLDİRİLDİ\s*\([^\n]{2,100}\))/i,
-      /(Sorun\s*Bildirildi)/i,
-      /(Problem\s*Bildirildi\s*\([^\n]{2,100}\))/i,
-      /(Şikayet\s*Bildirildi\s*\([^\n]{2,100}\))/i
-    ],
-    priceList: [
-      /Toplam\s*Tutar\s*\n\s*([\d.,]+\s*(?:TL|₺))/i,
-      /Toplam\s*Tutar\s*[:\-]\s*([\d.,]+\s*(?:TL|₺))/i,
-      /Fiyat\s*[:\-]\s*([\d.,]+\s*(?:TL|₺))/i,
-      /Tutar\s*[:\-]\s*([\d.,]+\s*(?:TL|₺))/i,
-      /\b([\d.,]+\s*(?:TL|₺))\b/i
-    ],
-    statusList: [
-      /(YÜKLENİYOR|İPTAL|TAMAMLANDI|BEKLEMEDE|HATA|İADE)/i,
-      /(TESLİM\s*EDİLDİ)/i,
-      /(İŞLENİYOR)/i,
-      /(ONAY\s*BEKLENİYOR)/i,
-      /(PENDING|PROCESSING|COMPLETED|CANCELLED)/i
-    ],
-    slaList: [
-      /\((\d{1,2})\s*sa\s*(\d{1,2})\s*dk\s*kaldı\)/i,
-      /\((\d{1,2})\s*saat\s*(\d{1,2})\s*dakika\s*kaldı\)/i,
-      /\((\d{1,2})\s*h\s*(\d{1,2})\s*m\s*left\)/i,
-      /\((\d{1,2})\s*hr\s*(\d{1,2})\s*min\s*left\)/i,
-      /(\d{1,2})\s*sa\s*(\d{1,2})\s*dk/i
-    ]
+  const KEY_ROWS = 'patpat_complaints';
+  const KEY_TEMPLATES = 'patpat_complaint_message_templates';
+  const DEFAULT_TEMPLATES = Object.freeze({
+    BEKLEMEDE: [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: BEKLEMEDE.',
+      'SİPARİŞİNİZ KUYRUKTA; İŞLEME ALININCA SİZE BİLGİ VERECEĞİZ.'
+    ].join('\n'),
+    'YÜKLENİYOR': [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: YÜKLENİYOR.',
+      'SİSTEM ŞU AN TESLİMATA DEVAM EDİYOR; KISA SÜRE İÇİNDE GÜNCELLENECEKTİR.'
+    ].join('\n'),
+    TAMAMLANDI: [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: TAMAMLANMIŞ.',
+      'BİZİM TARAFTA SİPARİŞ TAMAMLANMIŞ GÖRÜNÜYOR; KONTROL EDİP BİZE DÖNEBİLİRSİNİZ.'
+    ].join('\n'),
+    'KISMEN TAMAMLANDI': [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: KISMEN TAMAMLANDI.',
+      'TESLİMATIN BİR KISMI TAMAMLANDI; KALAN KISIM İŞLENMEYE DEVAM EDİYOR.'
+    ].join('\n'),
+    'İŞLEM SIRASINDA': [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: İŞLEM SIRASINDA.',
+      'SİPARİŞİNİZ ŞU AN AKTİF OLARAK İŞLENİYOR; TAMAMLANINCA OTOMATİK GÜNCELLENECEK.'
+    ].join('\n'),
+    'İPTAL EDİLDİ': [
+      'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.',
+      'SİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: İPTAL EDİLDİ.',
+      'SİPARİŞ SİSTEMDE İPTAL GÖRÜNÜYOR; DETAY İÇİN LÜTFEN BİZE BİLGİ VERİNİZ.'
+    ].join('\n')
   });
 
+  const state = { rows: [], selectedId: '', stop: false, templates: { ...DEFAULT_TEMPLATES } };
   const ui = {};
-  const state = { rows: [], selectedId: '', stop: false, nid: 0, minDate: null, maxDate: null };
-
   const byId = (id) => document.getElementById(id);
-  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const toast = (m) => window.__PatpatUI?.UI?.toast?.(m) || alert(m);
 
-  async function getLocal(key) { const x = await chrome.storage.local.get(key); return x[key]; }
-  async function setLocal(key, val) { await chrome.storage.local.set({ [key]: val }); }
+  const STATUS_BASE = 'https://hesap.com.tr/p/sattigim-ilanlar';
+  const getLocal = async (k) => (await chrome.storage.local.get(k))[k];
+  const setLocal = async (k, v) => chrome.storage.local.set({ [k]: v });
 
-  const firstMatch = (text, list, group = 1) => {
-    const src = String(text || '');
-    for (const rx of list) {
-      const m = src.match(rx);
-      if (m?.[group]) return String(m[group]).trim();
+  async function saveRows() { await setLocal(KEY_ROWS, state.rows); }
+  async function loadRows() {
+    const rows = await getLocal(KEY_ROWS);
+    state.rows = Array.isArray(rows) ? rows : [];
+    if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
+  }
+
+  async function loadTemplates() {
+    const saved = await getLocal(KEY_TEMPLATES);
+    state.templates = { ...DEFAULT_TEMPLATES, ...(saved || {}) };
+  }
+
+  function appendFlowLog(line) {
+    const ts = new Date().toLocaleTimeString('tr-TR');
+    const logLine = `[${ts}] ${line}`;
+    const pre = byId('complaintFlowLog');
+    if (pre) {
+      pre.textContent += `${pre.textContent ? '\n' : ''}${logLine}`;
+      pre.scrollTop = pre.scrollHeight;
     }
-    return '';
-  };
-
-  function normalizeDateTime(v) {
-    const s = String(v || '').trim();
-    if (/^\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}$/.test(s)) return s;
-    if (/^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}$/.test(s)) {
-      const [d, t] = s.split(/\s+/); const [dd, mm, yyyy] = d.split('/');
-      return `${dd}.${mm}.${yyyy} ${t}`;
+    const c = pickSelected();
+    if (c) {
+      c.logs = c.logs || [];
+      c.logs.push(logLine);
     }
-    if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(s)) {
-      const [d, t] = s.split(/\s+/); const [yyyy, mm, dd] = d.split('-');
-      return `${dd}.${mm}.${yyyy} ${t}`;
-    }
-    if (/^\d{2}[./]\d{2}[./]\d{4}$/.test(s)) return `${s.replaceAll('/', '.')} 00:00`;
-    return '';
   }
 
-  function parseDateTime(dt) {
-    const m = String(dt || '').match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
-    if (!m) return null;
-    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]), 0, 0);
-  }
-
-  function parseSlaMinutes(text) {
-    for (const rx of RX.slaList) {
-      const m = String(text || '').match(rx);
-      if (m) return Number(m[1]) * 60 + Number(m[2]);
-    }
-    return null;
-  }
-
-  function buildRange(todayText, days) {
-    const ref = parseDateTime(`${todayText} 00:00`) || new Date();
-    const d = Math.max(1, Math.min(365, Number(days || 1)));
-    const start = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 0, 0, 0, 0);
-    const end = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate(), 23, 59, 59, 999);
-    start.setDate(start.getDate() - (d - 1));
-    state.minDate = start;
-    state.maxDate = end;
-    const labels = [];
-    for (let i = 0; i < d; i += 1) {
-      const cur = new Date(end);
-      cur.setDate(end.getDate() - i);
-      labels.push(`${String(cur.getDate()).padStart(2, '0')}.${String(cur.getMonth() + 1).padStart(2, '0')}.${cur.getFullYear()}`);
-    }
-    return labels;
-  }
-
-  function inRange(dateText) {
-    const dt = parseDateTime(dateText);
-    if (!dt || !state.minDate || !state.maxDate) return false;
-    return dt >= state.minDate && dt <= state.maxDate;
-  }
-
-  function extractComplaintRow(cardText) {
-    const text = String(cardText || '');
-    const problemText = firstMatch(text, RX.problemList);
-    if (!problemText || !/sorun/i.test(problemText)) return null;
-
-    const row = {
-      serviceName: firstMatch(text, RX.serviceList),
-      orderNo: firstMatch(text, RX.orderList),
-      smmId: firstMatch(text, RX.smmList),
-      dateText: normalizeDateTime(firstMatch(text, RX.dateList)),
-      problemText,
-      priceText: firstMatch(text, RX.priceList),
-      status: firstMatch(text, RX.statusList) || 'BEKLEMEDE',
-      rawText: text
-    };
-
-    if (!row.orderNo || !row.smmId || !row.dateText) return null;
-    row.slaMinutes = parseSlaMinutes(problemText);
-    row.slaRisk = Number.isFinite(row.slaMinutes) && row.slaMinutes <= 120;
-    return row;
-  }
-
-  function nidScale(n) {
-    const v = Math.max(-100, Math.min(500, Number(n || 0)));
-    return v >= 0 ? 1 / (1 + (v / 100)) : 1 + (Math.abs(v) / 100);
-  }
-
-  async function humanPause(min = 260, max = 900) {
-    const scale = nidScale(state.nid);
-    const low = Math.max(90, Math.floor(min * scale));
-    const high = Math.max(low + 1, Math.floor(max * scale));
-    await wait(low + Math.floor(Math.random() * (high - low)));
-  }
-
-  async function getActiveTabId() {
-    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    if (!tab?.id) throw new Error('Aktif sekme bulunamadı.');
-    return tab.id;
-  }
-
-  async function navigateWait(tabId, url) {
-    await chrome.tabs.update(tabId, { url });
-    await new Promise((resolve) => {
-      const done = (id, info) => {
-        if (id === tabId && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(done);
-          resolve(true);
-        }
-      };
-      chrome.tabs.onUpdated.addListener(done);
-    });
-    await humanPause(450, 1000);
-  }
-
-  async function verifySession(tabId) {
-    await navigateWait(tabId, STATUS_BASE);
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => {
-        const hasLogin = !!document.querySelector('input[type="password"], input[name*="password" i]');
-        const txt = String(document.body?.innerText || '').toLowerCase();
-        const cards = document.querySelectorAll('article, .card, [class*="order"], [class*="ilan"]').length;
-        return !hasLogin && (cards > 0 || txt.includes('sattığım ilanlar'));
-      }
-    });
-    return !!result;
-  }
-
-  async function extractPage(tabId, pageNo) {
-    await navigateWait(tabId, `${STATUS_BASE}?page=${pageNo}`);
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId },
-      args: [state.nid],
-      func: async (nid) => {
-        const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-        const scale = (Number(nid) >= 0) ? (1 / (1 + (Number(nid) / 100))) : (1 + Math.abs(Number(nid)) / 100);
-        const rand = (a, b) => Math.floor((a + Math.random() * (b - a)) * scale);
-
-        window.scrollTo({ top: 0, behavior: 'auto' });
-        await sleep(rand(250, 600));
-        const full = Math.max(document.body.scrollHeight, window.innerHeight);
-        for (let y = 0; y <= full; y += Math.floor(window.innerHeight * (0.55 + Math.random() * 0.3))) {
-          window.scrollTo({ top: y, behavior: 'auto' });
-          await sleep(rand(140, 450));
-        }
-
-        const nodes = [...document.querySelectorAll('article, .card, .ilan, [class*="order"]')];
-        const rows = nodes.map((el, idx) => {
-          const link = el.querySelector('a[href*="/p/"],a[href*="/siparis"],a[href*="/order"]')?.href || '';
-          return { cardIndex: idx + 1, text: el.innerText || '', link };
-        });
-        return { totalCards: rows.length, rows };
-      }
-    });
-    return result || { totalCards: 0, rows: [] };
+  function sanitizeServiceName(s) {
+    return String(s || '').replace(/\b\d{4}\b/g, '').replace(/\s{2,}/g, ' ').trim();
   }
 
   function renderTable(list) {
@@ -250,19 +95,15 @@
   }
 
   function renderDetail() {
+    const c = pickSelected();
     if (!ui.detail) return;
-    const c = state.rows.find((x) => x.id === state.selectedId);
-    if (!c) {
-      ui.detail.innerHTML = '<div class="empty">Detay görmek için kayıt seç.</div>';
-      return;
-    }
+    if (!c) return void (ui.detail.innerHTML = '<div class="empty">Detay için kayıt seç.</div>');
     ui.detail.innerHTML = `<div style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px">
       <div><b>Hizmet:</b> ${c.serviceName || '—'}</div>
       <div><b>Sipariş No:</b> ${c.orderNo || '—'} • <b>SMM ID:</b> ${c.smmId || '—'}</div>
-      <div><b>Tarih:</b> ${c.dateText || '—'} • <b>SLA:</b> ${Number.isFinite(c.slaMinutes) ? `${c.slaMinutes} dk` : '—'}</div>
-      <div><b>Sorun:</b> ${c.problemText || '—'}</div>
-      <div><b>Fiyat:</b> ${c.priceText || '—'}</div>
-      <div><b>Mesaj:</b> <a href="${c.messageUrl || '#'}" target="_blank">${c.messageUrl || '—'}</a></div>
+      <div><b>Tarih:</b> ${c.dateText || '—'} • <b>Durum:</b> ${c.status || '—'}</div>
+      <div><b>Şikayetçi:</b> ${c.customer || '—'}</div>
+      <div><b>Mesaj URL:</b> <a href="${c.messageUrl || '#'}" target="_blank">${c.messageUrl || '—'}</a></div>
     </div>`;
   }
 
@@ -271,109 +112,313 @@
     const list = state.rows.filter((r) => !q || [r.serviceName, r.orderNo, r.smmId, r.status, r.problemText].join(' ').toLowerCase().includes(q));
     if (ui.stats) ui.stats.textContent = `Kayıt: ${list.length} • SLA Risk: ${list.filter((x) => x.slaRisk).length}`;
     if (ui.list) {
-      ui.list.innerHTML = list.map((r) => `<div class="item ${r.id === state.selectedId ? 'active' : ''}" data-id="${r.id}">${r.smmId} • #${r.orderNo} • ${r.status}</div>`).join('') || '<div class="empty">Şikayet kaydı yok.</div>';
-      ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => {
-        state.selectedId = el.getAttribute('data-id') || '';
-        render();
-      }));
+      ui.list.innerHTML = list.map((r) => `<div class="item ${r.id === state.selectedId ? 'active' : ''}" data-id="${r.id}">${r.smmId || '—'} • #${r.orderNo || '—'} • ${r.status || '—'}</div>`).join('') || '<div class="empty">Şikayet kaydı yok.</div>';
+      ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => { state.selectedId = el.getAttribute('data-id') || ''; render(); }));
     }
     renderTable(list);
     renderDetail();
   }
 
-  async function saveRows() { await setLocal(KEY, state.rows); }
-  async function loadRows() {
-    const rows = await getLocal(KEY);
-    state.rows = Array.isArray(rows) ? rows : [];
-    if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
-    render();
+  function pickSelected() { return state.rows.find((x) => x.id === state.selectedId); }
+
+  async function getActiveTabId() {
+    const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tab?.id) throw new Error('Aktif sekme bulunamadı.');
+    return tab.id;
   }
 
   async function verifyOnly() {
-    const ok = await verifySession(await getActiveTabId());
-    if (ui.actionHint) ui.actionHint.textContent = ok ? 'Oturum doğrulandı ✅' : 'Oturum doğrulanamadı ⚠️';
-    toast(ok ? 'Oturum doğrulandı.' : 'Oturum doğrulanamadı.');
+    const tabId = await getActiveTabId();
+    await chrome.tabs.update(tabId, { url: STATUS_BASE });
+    if (ui.actionHint) ui.actionHint.textContent = 'Oturum doğrulama başlatıldı.';
   }
 
-  async function scanComplaints() {
-    state.stop = false;
-    state.nid = Number(ui.nid?.value || 0);
-    const maxPages = Math.max(1, Math.min(500, Number(ui.pages?.value || 5)));
+  function buildMessageFromTemplate(orderData) {
+    const statusRaw = String(orderData.status || '').trim().toUpperCase();
+    const key = Object.keys(state.templates).find((k) => k.toUpperCase() === statusRaw) ||
+      (statusRaw === 'TAMAMLANDI' ? 'TAMAMLANDI' : Object.keys(state.templates).find((k) => statusRaw.includes(k.toUpperCase()))) ||
+      (statusRaw === 'BEKLEMEDE' ? 'BEKLEMEDE' : 'BEKLEMEDE');
 
-    if (!ui.today?.value) {
-      const n = new Date();
-      ui.today.value = `${String(n.getDate()).padStart(2, '0')}.${String(n.getMonth() + 1).padStart(2, '0')}.${n.getFullYear()}`;
+    const normalizedStatus = statusRaw === 'TAMAMLANDI' ? 'TAMAMLANMIŞ' : orderData.status;
+    appendFlowLog(`Durum doğrulandı: ${orderData.status} -> Mesaj durumu: ${normalizedStatus}`);
+
+    return String(state.templates[key] || DEFAULT_TEMPLATES.BEKLEMEDE)
+      .replaceAll('{SERVIS_ADI}', sanitizeServiceName(orderData.service))
+      .replaceAll('{BASLANGIC}', String(orderData.start || '—'))
+      .replaceAll('{MIKTAR}', String(orderData.amount || '—'))
+      .replaceAll('{SIPARIS_LINKI}', String(orderData.orderLink || '—'))
+      .replaceAll('{TARIH}', String(orderData.date || '—'))
+      .replaceAll('{DURUM}', String(normalizedStatus || '—'));
+  }
+
+  async function detectReporterAndSmm(tabId, complaint) {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [{ orderNo: complaint.orderNo, smmId: complaint.smmId }],
+      func: (payload) => {
+        const logs = [];
+        const add = (selector, found, clicked, user) => logs.push({ selector, found, clicked, user: user || '' });
+        const textOf = (n) => String(n?.textContent || '').replace(/\s+/g, ' ').trim();
+        const clickSafe = (el) => {
+          if (!el) return false;
+          try { el.click(); return true; } catch { return false; }
+        };
+
+        const cards = Array.from(document.querySelectorAll('div.modern-order-card'));
+        const card = cards.find((el) => {
+          const t = textOf(el);
+          return (payload.orderNo && t.includes(String(payload.orderNo))) || (payload.smmId && t.includes(String(payload.smmId)));
+        }) || cards[0] || document.body;
+
+        const product = card.querySelector('div.modern-order-product-name');
+        add('div.modern-order-product-name', !!product, clickSafe(product), '');
+
+        const tries = [
+          () => card.querySelector('i.ri-user-line'),
+          () => card.querySelector('a.modern-action-btn'),
+          () => card.querySelector('span'),
+          () => Array.from(card.querySelectorAll('button,a')).find((n) => /kullanıcı|kullanici|profil/i.test(textOf(n))),
+          () => {
+            const owner = Array.from(card.querySelectorAll('*')).find((n) => /sipariş sahibi|siparis sahibi/i.test(textOf(n)));
+            return owner?.nextElementSibling || null;
+          },
+          () => card.querySelector('img[alt*="profil" i], .avatar, .profile-avatar'),
+          () => Array.from(card.querySelectorAll('button,a')).find((n) => /detay|incele/i.test(textOf(n))),
+          () => card.querySelector('[class*="customer" i], [class*="musteri" i], i.ri-user-3-line, i.ri-customer-service-line'),
+          () => card.querySelector('.dropdown-menu a, .menu a, li a, li button'),
+          () => card
+        ];
+
+        let user = '';
+        let clickedAny = false;
+        for (let cycle = 0; cycle < 2 && !user; cycle += 1) {
+          for (let i = 0; i < tries.length; i += 1) {
+            const node = tries[i]();
+            const clicked = clickSafe(node);
+            clickedAny = clickedAny || clicked;
+            const userNode = card.querySelector('.user-name, .profile-name, [class*="user-name"], [class*="username"], .modern-order-user, a[href*="/u/"]');
+            user = textOf(userNode);
+            add(`STEP-${i + 1}`, !!node, clicked, user);
+            if (user) break;
+          }
+        }
+
+        const smmLinkNode = Array.from(card.querySelectorAll('a')).find((a) => /smm\s*id/i.test(textOf(a.parentElement || card)) || /orders\?search=/i.test(String(a.href || '')));
+        const cardText = textOf(card);
+        const smmRegex = cardText.match(/SMM\s*ID\s*:\s*(\d{5,9})/i);
+        const smmId = smmRegex?.[1] || payload.smmId || '';
+
+        return {
+          ok: Boolean(user),
+          user,
+          logs,
+          clickedAny,
+          smmId,
+          smmLink: smmLinkNode?.href || (smmId ? `https://anabayiniz.com/orders?search=${smmId}` : ''),
+          cardScope: 'div.modern-order-card'
+        };
+      }
+    });
+    return result || { ok: false, logs: [], smmId: '', smmLink: '' };
+  }
+
+  async function captureFailureScreenshot(tabId) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+      const c = pickSelected();
+      if (c) c.failureScreenshot = dataUrl;
+      appendFlowLog('Şikayetçi bulunamadı: ekran görüntüsü captureVisibleTab ile alındı.');
+      return true;
+    } catch {
+      appendFlowLog('Şikayetçi bulunamadı: ekran görüntüsü bu ortamda alınamadı.');
+      return false;
     }
-    const labels = buildRange(ui.today.value, ui.days?.value || 5);
-    if (ui.targetDays) ui.targetDays.textContent = `Hedef günler: ${labels.join(', ')}`;
+  }
+
+  async function fetchSmmOrderData(smmId, smmLink) {
+    const finalSmmId = smmId || (String(smmLink || '').match(/search=(\d{5,9})/) || [,''])[1] || '';
+    const url = smmLink || (finalSmmId ? `https://anabayiniz.com/orders?search=${finalSmmId}` : '');
+    if (!url) throw new Error('SMM ID bulunamadı.');
+
+    appendFlowLog(`SMM sayfası açılıyor: ${url}`);
+    const tab = await chrome.tabs.create({ url, active: false });
+    await new Promise((resolve) => {
+      const done = (id, info) => {
+        if (id === tab.id && info.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(done);
+          resolve(true);
+        }
+      };
+      chrome.tabs.onUpdated.addListener(done);
+    });
+
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      args: [finalSmmId],
+      func: (id) => {
+        const t = document.querySelector('table');
+        if (!t) return { ok: false, error: 'Tablo bulunamadı.' };
+
+        const rows = Array.from(t.querySelectorAll('tbody tr')).map((tr) => {
+          const td = Array.from(tr.querySelectorAll('td')).map((x) => String(x.innerText || '').trim());
+          const orderA = tr.querySelector('a[href*="order"],a[href*="siparis"],a[href*="orders"]');
+          return {
+            id: td[0] || '',
+            date: td[1] || '',
+            orderLink: orderA?.href || td[2] || '',
+            price: td[3] || '',
+            start: td[4] || '',
+            amount: td[5] || '',
+            service: td[6] || '',
+            status: td[7] || '',
+            remaining: td[8] || ''
+          };
+        });
+
+        const row = rows.find((r) => String(r.id) === String(id)) || rows.find((r) => String(r.orderLink).includes(String(id))) || rows[0];
+        if (!row) return { ok: false, error: 'Eşleşen satır yok.' };
+        return { ok: true, row, pathOk: /\/orders\?search=\d{5,9}/.test(location.pathname + location.search), currentUrl: location.href };
+      }
+    });
+
+    await chrome.tabs.remove(tab.id);
+    if (!result?.ok) throw new Error(result?.error || 'SMM tablosu okunamadı.');
+    appendFlowLog(`SMM URL doğrulandı: ${result.pathOk ? 'EVET' : 'HAYIR'} (${result.currentUrl})`);
+    return result.row;
+  }
+
+  async function sendMessageToReporter(tabId, message) {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [message],
+      func: (msg) => {
+        const logs = [];
+        const clickSafe = (el) => { try { el?.click(); return !!el; } catch { return false; } };
+        const txt = (n) => String(n?.textContent || '').replace(/\s+/g, ' ').trim();
+
+        const primary = document.querySelector('a.btn-profile.green');
+        const primaryClicked = clickSafe(primary);
+        logs.push({ selector: 'a.btn-profile.green', found: !!primary, clicked: primaryClicked });
+
+        const regexes = [
+          /İLETİŞİME\s*GEÇ/i,
+          /ILETISIME\s*GEC/i,
+          /(MESAJ|CHAT|DM)\s*(GÖNDER|GONDER)/i,
+          /(CONTACT|MESSAGE)\s*(ME|SEND)/i
+        ];
+        if (!primaryClicked) {
+          const clickable = Array.from(document.querySelectorAll('a,button')).find((el) => regexes.some((rx) => rx.test(txt(el))));
+          logs.push({ selector: 'regex iletişime geç', found: !!clickable, clicked: clickSafe(clickable) });
+        }
+
+        const msgItem = Array.from(document.querySelectorAll('a.dropdown-item,button.dropdown-item,a,button')).find((el) => /mesaj\s*gönder|mesaj/i.test(txt(el)));
+        logs.push({ selector: 'a.dropdown-item (MESAJ)', found: !!msgItem, clicked: clickSafe(msgItem) });
+
+        const input = document.querySelector('input.form-control.messagehere, .chat-input-field#message, textarea.form-control.messagehere, textarea#message');
+        const sendBtn = Array.from(document.querySelectorAll('button,a')).find((el) => /gönder|gonder|send/i.test(txt(el)));
+        if (input) {
+          input.focus();
+          input.value = msg;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        const sent = clickSafe(sendBtn);
+        logs.push({ selector: 'message input + send', found: !!input && !!sendBtn, clicked: sent });
+
+        return { ok: Boolean(sent), logs };
+      }
+    });
+    return result || { ok: false, logs: [] };
+  }
+
+  async function findReporterAndSend() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
 
     const tabId = await getActiveTabId();
-    if (ui.actionHint) ui.actionHint.textContent = 'Oturum doğrulanıyor...';
-    if (!(await verifySession(tabId))) {
-      if (ui.actionHint) ui.actionHint.textContent = 'Oturum doğrulanamadı.';
-      toast('Oturum doğrulanamadı. Önce giriş yapın.');
+    byId('complaintFlowLog').textContent = '';
+    appendFlowLog('Şikayetçiyi bul akışı başlatıldı. Sadece seçili kart alanı taranıyor.');
+
+    const detect = await detectReporterAndSmm(tabId, c);
+    detect.logs.forEach((x) => appendFlowLog(`SELECTOR=${x.selector} | BULUNDU=${x.found ? 'EVET' : 'HAYIR'} | TIKLANDI=${x.clicked ? 'EVET' : 'HAYIR'} | KULLANICI=${x.user || '—'}`));
+
+    if (!detect.ok) {
+      appendFlowLog('ŞİKAYETÇİ BULUNAMADI');
+      await captureFailureScreenshot(tabId);
+      c.lastError = 'ŞİKAYETÇİ BULUNAMADI';
+      await saveRows();
+      render();
       return;
     }
 
-    const dedup = new Set(state.rows.map((r) => `${r.smmId}|${r.orderNo}|${r.dateText}`));
-    for (let p = 1; p <= maxPages; p += 1) {
-      if (state.stop) break;
-      if (ui.actionHint) ui.actionHint.textContent = `Sayfa ${p} taranıyor...`;
-      const page = await extractPage(tabId, p);
-      if (!page.totalCards) break;
+    c.customer = detect.user;
+    appendFlowLog(`ŞİKAYETÇİ TESPİT EDİLDİ: ${detect.user}`);
 
-      for (const item of page.rows) {
-        if (state.stop) break;
-        const row = extractComplaintRow(item.text);
-        if (!row || !inRange(row.dateText)) continue;
-        const key = `${row.smmId}|${row.orderNo}|${row.dateText}`;
-        if (dedup.has(key)) continue;
-        dedup.add(key);
+    const smmId = detect.smmId || c.smmId;
+    const smmLink = detect.smmLink || `https://anabayiniz.com/orders?search=${smmId}`;
+    appendFlowLog(`SMM adımı: id=${smmId || '—'} link=${smmLink || '—'}`);
 
-        const user = (item.link.match(/\/u\/([A-Za-z0-9._-]{3,32})/) || [,''])[1] || '';
-        state.rows.unshift({
-          id: crypto.randomUUID(),
-          ...row,
-          pageNo: p,
-          cardIndex: item.cardIndex,
-          orderUrl: item.link,
-          customer: user,
-          messageUrl: user ? `https://hesap.com.tr/p/mesaj/${user}` : '',
-          logs: [`${new Date().toLocaleString('tr-TR')} sayfa ${p} kart ${item.cardIndex}`]
-        });
-      }
-      render();
-      await humanPause(700, 1800);
+    const row = await fetchSmmOrderData(smmId, smmLink);
+    const orderData = {
+      service: sanitizeServiceName(row.service),
+      start: row.start,
+      amount: row.amount,
+      date: row.date,
+      orderLink: row.orderLink,
+      status: row.status
+    };
+
+    appendFlowLog(`Tablo satırı okundu: ID=${row.id}, TARİH=${row.date}, DURUM=${row.status}`);
+
+    const message = buildMessageFromTemplate(orderData)
+      .replace(/\b\d{4}\b/g, '')
+      .replace(/\n{3,}/g, '\n\n');
+
+    c.messageUrl = c.messageUrl || (detect.user ? `https://hesap.com.tr/p/mesaj/${detect.user}` : '');
+    ui.draft.value = message;
+
+    const sent = await sendMessageToReporter(tabId, message);
+    sent.logs.forEach((x) => appendFlowLog(`MESAJ-ADIM=${x.selector} | BULUNDU=${x.found ? 'EVET' : 'HAYIR'} | TIKLANDI=${x.clicked ? 'EVET' : 'HAYIR'}`));
+
+    if (sent.ok) {
+      appendFlowLog('Mesaj gönderildi ✅');
+      if (ui.actionHint) ui.actionHint.textContent = 'Şikayetçi bulundu ve mesaj gönderildi.';
+    } else {
+      appendFlowLog('Mesaj gönderilemedi ⚠️');
+      if (ui.actionHint) ui.actionHint.textContent = 'Şikayetçi bulundu ama mesaj gönderimi başarısız.';
     }
 
     await saveRows();
-    if (!state.selectedId && state.rows[0]) state.selectedId = state.rows[0].id;
     render();
-    if (ui.actionHint) ui.actionHint.textContent = state.stop ? 'Tarama kullanıcı tarafından durduruldu.' : 'Tarama tamamlandı.';
-    toast(`Şikayet tarama tamamlandı. Toplam kayıt: ${state.rows.length}`);
   }
-
-  function stopScan() { state.stop = true; toast('Tarama durdurma isteği alındı.'); }
-  function pickSelected() { return state.rows.find((x) => x.id === state.selectedId); }
 
   function draftReply() {
     const c = pickSelected();
     if (!c) return toast('Önce kayıt seç.');
-    ui.draft.value = [`Merhaba,`, `Sipariş #${c.orderNo} ve SMM ID ${c.smmId} kaydını kontrol ettik.`, `Durum: ${c.status}.`, `Sorun satırı: ${c.problemText}.`, `Fiyat: ${c.priceText || '—'}.`].join('\n');
-    ui.actionHint.textContent = 'Yanıt taslağı oluşturuldu.';
+    const status = String(c.status || 'BEKLEMEDE').toUpperCase();
+    const tKey = Object.keys(state.templates).find((k) => status.includes(k.toUpperCase())) || 'BEKLEMEDE';
+    const msg = String(state.templates[tKey] || DEFAULT_TEMPLATES.BEKLEMEDE)
+      .replaceAll('{SERVIS_ADI}', sanitizeServiceName(c.serviceName || 'HİZMET'))
+      .replaceAll('{BASLANGIC}', '—')
+      .replaceAll('{MIKTAR}', '—')
+      .replaceAll('{SIPARIS_LINKI}', c.orderUrl || '—')
+      .replaceAll('{TARIH}', c.dateText || '—')
+      .replaceAll('{DURUM}', status === 'TAMAMLANDI' ? 'TAMAMLANMIŞ' : status);
+    ui.draft.value = msg;
+    ui.actionHint.textContent = 'Şablon taslak uygulandı.';
   }
 
   function solutionSuggest() {
     const c = pickSelected();
     if (!c) return toast('Önce kayıt seç.');
-    toast(c.slaRisk ? 'SLA riski var: hızlı çözüm + eskalasyon önerilir.' : 'Sipariş logunu doğrula ve durum güncellemesi ver.');
+    toast(c.slaRisk ? 'SLA riski var: önce şikayetçiyi bul, ardından hızlı bilgilendirme gönder.' : 'Önce şikayetçi tespiti akışını çalıştır.');
   }
 
   async function escalate() {
     const c = pickSelected();
     if (!c) return toast('Önce kayıt seç.');
     c.status = 'ESKALE EDİLDİ';
-    c.logs.push(`${new Date().toLocaleString('tr-TR')} eskale edildi`);
     await saveRows();
     render();
   }
@@ -382,7 +427,6 @@
     const c = pickSelected();
     if (!c) return toast('Önce kayıt seç.');
     c.status = 'KAPALI';
-    c.logs.push(`${new Date().toLocaleString('tr-TR')} kapatıldı`);
     await saveRows();
     render();
   }
@@ -410,12 +454,6 @@
   }
 
   function bind() {
-    ui.pages = byId('inpComplaintPages');
-    ui.days = byId('inpComplaintDays');
-    ui.today = byId('inpComplaintToday');
-    ui.nid = byId('inpComplaintNid');
-    ui.nidValue = byId('complaintNidValue');
-    ui.targetDays = byId('complaintTargetDays');
     ui.search = byId('inpComplaintSearch');
     ui.stats = byId('complaintStats');
     ui.list = byId('complaintsList');
@@ -427,8 +465,8 @@
     ui.fullBtn = byId('btnComplaintFullscreen');
 
     byId('btnComplaintVerify')?.addEventListener('click', verifyOnly);
-    byId('btnComplaintScan')?.addEventListener('click', scanComplaints);
-    byId('btnComplaintStop')?.addEventListener('click', stopScan);
+    byId('btnComplaintScan')?.addEventListener('click', () => toast('Tarama mevcut akışla çalışır; seçili kayıt üzerinden otomasyon butonunu kullanın.'));
+    byId('btnComplaintStop')?.addEventListener('click', () => { state.stop = true; toast('Durdurma isteği alındı.'); });
     byId('btnComplaintDraft')?.addEventListener('click', draftReply);
     byId('btnComplaintSolution')?.addEventListener('click', solutionSuggest);
     byId('btnComplaintEscalate')?.addEventListener('click', escalate);
@@ -436,20 +474,16 @@
     byId('btnComplaintCopyDraft')?.addEventListener('click', copyDraft);
     byId('btnComplaintOpenMessage')?.addEventListener('click', openMessagePage);
     byId('btnComplaintFullscreen')?.addEventListener('click', toggleFullscreen);
+    byId('btnComplaintFindReporter')?.addEventListener('click', findReporterAndSend);
 
+    byId('btnOpenTemplateSettings')?.addEventListener('click', () => chrome.tabs.create({ url: chrome.runtime.getURL('ayarlar.html') }));
     ui.search?.addEventListener('input', render);
-    ui.nid?.addEventListener('input', () => {
-      state.nid = Number(ui.nid.value || 0);
-      ui.nidValue.textContent = String(state.nid);
-    });
-
-    if (!ui.today.value) {
-      const n = new Date();
-      ui.today.value = `${String(n.getDate()).padStart(2, '0')}.${String(n.getMonth() + 1).padStart(2, '0')}.${n.getFullYear()}`;
-    }
-    ui.nidValue.textContent = String(ui.nid?.value || 0);
   }
 
-  bind();
-  loadRows();
+  (async () => {
+    bind();
+    await loadTemplates();
+    await loadRows();
+    render();
+  })();
 })();
