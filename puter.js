@@ -10,7 +10,6 @@
   function doctorNote(source, payload) {
     try { window.PatpatPuterDoctor?.note?.(source, payload); } catch {}
   }
-=======
     'gpt-4o',
     'gpt-4o-mini',
     'gpt-4-turbo',
@@ -37,7 +36,6 @@
       }
     } catch {}
     try { const v = localStorage.getItem('patpat_puter_model'); if (v) state.model = v; } catch {}
-=======
     try {
       const v = localStorage.getItem('patpat_puter_model');
       if (v) state.model = v;
@@ -92,7 +90,6 @@
   async function chat(prompt, options = {}) {
     const puter = await ensurePuterLoaded();
     if (!puter?.ai?.chat) throw new Error('Puter.ai.chat bulunamadı.');
-=======
   function getPuter() {
     return (typeof window !== 'undefined' ? window.puter : undefined);
   }
@@ -130,7 +127,6 @@
       doctorNote('txt2img_object_signature_failed', e);
       throw e;
     }
-=======
     const puter = getPuter();
     if (!puter?.ai?.txt2img) throw new Error('Puter.js txt2img kullanılamıyor.');
     return puter.ai.txt2img(prompt, {
@@ -178,7 +174,6 @@
       out.textContent = 'Yanıt bekleniyor...';
       try { out.textContent = await chat(prompt, { model: modelSel.value, testMode: state.testMode }); }
       catch (err) { out.textContent = `Hata: ${err.message || err}`; }
-=======
       try {
         const answer = await chat(prompt, { model: modelSel.value, testMode: state.testMode });
         out.textContent = answer;
@@ -206,7 +201,6 @@
         }
       });
     }
-=======
 
  main
     return wrap;
@@ -222,7 +216,6 @@
 
   loadStoredModel();
   window.PatpatPuter = { autoMount, chat, txt2img, ensurePuterLoaded, getModel: () => state.model, setModel: saveModel, models: MODEL_OPTIONS };
-=======
   window.PatpatPuter = { autoMount, chat, txt2img, getModel: () => state.model, setModel: saveModel, models: MODEL_OPTIONS };
  main
 })();

@@ -39,6 +39,7 @@
   }
 
   function renderOverlay(report) {
+    if (localStorage.getItem('patpat_doctor_overlay') !== '1') return;
     let box = document.getElementById('puterDoctorOverlay');
     if (!box) {
       box = document.createElement('pre');

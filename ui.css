@@ -79,9 +79,10 @@ body {
   right: 10px;
   z-index: 4;
   border: 0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--danger);
+  border-radius: 999px;
+  width: 48px;
+  height: 48px;
+  background: rgba(207,47,56,.7);
   color: #fff;
   font-weight: 900;
   cursor: pointer;
