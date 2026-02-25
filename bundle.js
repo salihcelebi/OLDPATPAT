@@ -1024,6 +1024,10 @@
       title: 'Müşteri Şikayet Yönetimi',
       desc: 'Şikayetleri sınıflandır, SLA takip et ve yanıt taslakları üret.'
     },
+    smm: {
+      title: 'SMM Yönetimi',
+      desc: 'SMM akışını ayrı sekmede izleyip tüm sistemle uyumlu yönet.'
+    },
     rules: {
       title: 'Kurallar ve Öğrenme Merkezi',
       desc: 'Öğrenme kuyruğunu yönet, test et ve kalıcı kuralları düzenle.'
