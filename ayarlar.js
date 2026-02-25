@@ -1,4 +1,5 @@
 (() => {
+
   const KEY = 'patpat_complaint_message_templates';
   const DEFAULTS = {
     BEKLEMEDE: 'BİZDEN {SERVIS_ADI} HİZMETİNİ ALDINIZ. BAŞLANGIÇ: {BASLANGIC}, MİKTAR: {MIKTAR}.\nSİPARİŞ LİNKİ: {SIPARIS_LINKI}. TARİH: {TARIH}. DURUM: BEKLEMEDE.\nSİPARİŞİNİZ KUYRUKTA; İŞLEME ALININCA SİZE BİLGİ VERECEĞİZ.',
@@ -51,4 +52,11 @@
   byId('btnSaveTemplates').addEventListener('click', save);
   byId('btnResetTemplates').addEventListener('click', reset);
   load().then(() => setStatus('Ayarlar yüklendi.'));
+=======
+  async function loadAyarlar() {
+    const settings = await window.PatpatStorage.readSettings();
+    return settings;
+  }
+  window.PatpatAyarlar = { loadAyarlar };
+ main
 })();
