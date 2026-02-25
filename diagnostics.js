@@ -10,3 +10,5 @@
   }
   window.PatpatDiagnostics = { runSelfTest };
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Diagnostics', rootSelector: '#diagnosticsRoot', enableImage: false }));

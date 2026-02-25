@@ -301,3 +301,5 @@
     await chrome.tabs.create({ url: chrome.runtime.getURL('siparis.html'), active:true });
   });
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Siparis', rootSelector: '#siparisRoot', enableImage: false }));

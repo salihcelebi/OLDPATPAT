@@ -41,3 +41,5 @@
 
   window.PatpatUi = { initUi };
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'UI', rootSelector: '#uiMount', enableImage: false }));
