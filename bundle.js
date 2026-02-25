@@ -3827,3 +3827,14 @@ function bindEvents() {
   boot();
 })();
 /* ===== END options.js ===== */
+
+/* ===== PUTER ENTEGRASYONU (ortak) ===== */
+(() => {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('DOMContentLoaded', () => {
+    const popupWrap = document.querySelector('.wrap');
+    if (document.body?.dataset?.page === 'popup' && popupWrap) {
+      window.PatpatPuter?.autoMount?.({ page: 'Popup', rootSelector: '.wrap', enableImage: false });
+    }
+  });
+})();
