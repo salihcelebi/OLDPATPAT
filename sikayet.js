@@ -122,6 +122,7 @@
     ui.list.querySelectorAll('[data-id]').forEach((el) => el.addEventListener('click', () => selectRow(el.getAttribute('data-id'))));
     renderTable(list);
     const c = pickSelected();
+    updateActionButtons();
     ui.detail.innerHTML = c ? `<div style="border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px"><div><b>Şikayetçi:</b> ${c.customer || '—'}</div><div><b>SMM ID:</b> ${c.smmId || '—'}</div><div><b>Durum:</b> ${c.status || '—'}</div></div>` : '<div class="empty">Detay için kayıt seç.</div>';
     renderEscalations();
     updateActionButtons();
@@ -386,6 +387,85 @@
     setActionHint('Rule/template import tamamlandı.');
   }
 
+
+  function debounce(fn, wait = 150) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), wait);
+    };
+  }
+
+  function setActionHint(text, ok = true) {
+    const el = byId('complaintActionHint');
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? '#88ffb7' : '#ff9ba5';
+  }
+
+  function updateActionButtons() {
+    const on = !!state.selectedId;
+    ['btnComplaintDraft', 'btnComplaintSolution', 'btnComplaintEscalate', 'btnComplaintClose'].forEach((id) => {
+      const el = byId(id);
+      if (el) el.disabled = !on;
+    });
+  }
+
+  function selectRow(id) {
+    if (!id) return;
+    state.selectedId = id;
+    saveRows();
+    render();
+  }
+
+  async function verifySession() {
+    try {
+      const tabId = await getActiveTabId();
+      const [{ result }] = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => ({ ok: !!document.querySelector('body') && !/login|giriş/i.test(document.body.innerText.slice(0, 3000)) })
+      });
+      setActionHint(result?.ok ? 'Oturum OK' : 'Oturum Gerekli', !!result?.ok);
+    } catch {
+      setActionHint('Oturum Gerekli', false);
+    }
+  }
+
+  function makeDraft() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    const data = { service: c.serviceName, start: c.startText || '—', amount: c.amountText || '—', orderLink: c.orderLink || c.messageUrl || '—', date: c.dateText || '—', status: c.status || 'BEKLEMEDE' };
+    ui.draft.value = buildTemplateMessage(data);
+  }
+
+  function makeSolution() {
+    const c = pickSelected();
+    if (!c) return toast('Önce kayıt seç.');
+    ui.draft.value = `${ui.draft.value || ''}
+
+Çözüm: Sipariş detayları kontrol edilip hızlandırma talebi açıldı.`.trim();
+  }
+
+  async function escalate(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    targets.forEach((r) => { r.escalated = true; });
+    await saveRows();
+    render();
+    setActionHint(`Eskale edildi: ${targets.length}`);
+  }
+
+  async function closeComplaint(ids) {
+    const targets = ids?.length ? state.rows.filter((r) => ids.includes(r.id)) : [pickSelected()].filter(Boolean);
+    if (!targets.length) return toast('Önce kayıt seç.');
+    if (!confirm('Şikayet kapatılsın mı?')) return;
+    targets.forEach((r) => { r.closed = true; r.status = 'KAPATILDI'; });
+    await saveRows();
+    render();
+  }
+
+  async function startScan() { state.stopScan = false; setActionHint('Tarama başlatıldı.'); }
+  async function stopScan() { state.stopScan = true; setActionHint('Tarama durduruldu.', false); }
   function bind() {
     ui.search = byId('inpComplaintSearch');
     ui.stats = byId('complaintStats');
@@ -433,6 +513,11 @@
         return;
       }
       selectRow(e.target.closest('tr')?.dataset?.id);
+    byId('btnComplaintOpenMessage')?.addEventListener('click', () => {
+      const c = pickSelected();
+    updateActionButtons();
+      if (!c?.messageUrl) return toast('Mesaj URL yok.');
+      chrome.tabs.create({ url: c.messageUrl });
     });
 
     byId('toggleLog').addEventListener('click', () => { const logEl = byId('complaintFlowLog'); logEl.hidden = !logEl.hidden; });
@@ -446,9 +531,55 @@
       if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); runComplaintAutomation(); }
       if (e.key === 'Escape') { e.preventDefault(); stopScan(); }
     });
+    ui.search?.addEventListener('input', debounce(render, 150));
+
+    byId('btnComplaintVerify')?.addEventListener('click', verifySession);
+    byId('btnComplaintScan')?.addEventListener('click', startScan);
+    byId('btnComplaintStop')?.addEventListener('click', stopScan);
+    byId('btnComplaintDraft')?.addEventListener('click', makeDraft);
+    byId('btnComplaintSolution')?.addEventListener('click', makeSolution);
+    byId('btnComplaintEscalate')?.addEventListener('click', () => escalate());
+    byId('btnComplaintClose')?.addEventListener('click', () => closeComplaint());
+    byId('btnBulkDraft')?.addEventListener('click', () => {
+      const ids = [...state.selectedIds];
+      if (!ids.length) return toast('Toplu taslak için seçim yap.');
+      state.selectedId = ids[0];
+      makeDraft();
+      setActionHint(`Toplu taslak hazırlandı: ${ids.length}`);
+    });
+    byId('btnBulkEscalate')?.addEventListener('click', () => escalate([...state.selectedIds]));
+    byId('btnBulkClose')?.addEventListener('click', () => closeComplaint([...state.selectedIds]));
+
+    byId('inpComplaintToday').value = new Date().toLocaleDateString('tr-TR');
+    byId('inpComplaintNid')?.addEventListener('input', (e) => { byId('complaintNidValue').textContent = `NID: ${e.target.value}`; });
+
+    ui.tbody?.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr');
+      const cb = e.target.closest('input[type="checkbox"]');
+      if (cb?.dataset?.id) {
+        if (cb.checked) state.selectedIds.add(cb.dataset.id); else state.selectedIds.delete(cb.dataset.id);
+        byId('selCount').textContent = `SEÇİLİ: ${state.selectedIds.size}`;
+        return;
+      }
+      if (tr?.dataset?.id) selectRow(tr.dataset.id);
+    });
+
+    byId('toggleLog')?.addEventListener('click', () => {
+      const el = byId('complaintFlowLog');
+      el.hidden = !el.hidden;
+    });
+
+    document.querySelectorAll('#btnComplaintFullscreen').forEach((b, i) => i && b.remove());
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); byId('btnComplaintFindReporter')?.click(); }
+      if (e.key === 'Escape') { e.preventDefault(); stopScan(); }
+    });
   }
 
   (async () => {
+    if (window.__SikayetInit) return;
+    window.__SikayetInit = true;
     bind();
     await loadState();
     render();
