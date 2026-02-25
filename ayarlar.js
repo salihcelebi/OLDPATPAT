@@ -72,3 +72,4 @@
   byId('btnResetTemplates').addEventListener('click', reset);
   load().then(() => setStatus('Ayarlar yüklendi.'));
 })();
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Ayarlar', rootSelector: '.wrap', enableImage: false }));

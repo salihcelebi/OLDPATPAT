@@ -37,3 +37,5 @@
     if (msg?.type === 'progress') ui.setProgress(Number(msg.progress || 0));
   });
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Sidepanel', rootSelector: '.app-shell', enableImage: false }));

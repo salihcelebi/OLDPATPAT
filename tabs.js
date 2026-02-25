@@ -31,3 +31,5 @@
 
   window.PatpatTabs = { initTabs };
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Tabs', rootSelector: '.tabs-bar', enableImage: false }));

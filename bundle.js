@@ -3834,6 +3834,7 @@ function bindEvents() {
   window.addEventListener('DOMContentLoaded', () => {
     const popupWrap = document.querySelector('.wrap');
     if (document.body?.dataset?.page === 'popup' && popupWrap) {
+      window.PatpatPuter?.autoMount?.({ page: 'Popup', rootSelector: '.wrap', enableImage: false });
     }
   });
 })();

@@ -36,3 +36,5 @@
   window.addEventListener('unhandledrejection', (e) => common.logger('Hata', String(e.reason || 'Promise hatası')));
   window.PatpatCommon = common;
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Common', rootSelector: '#commonTemplateRoot', enableImage: false }));

@@ -448,3 +448,5 @@
     await chrome.tabs.create({ url: chrome.runtime.getURL('rakip.html'), active:true });
   });
 })();
+
+window.addEventListener('DOMContentLoaded', () => window.PatpatPuter?.autoMount?.({ page: 'Rakip', rootSelector: '#rakipRoot', enableImage: false }));
