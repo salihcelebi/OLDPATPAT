@@ -1,0 +1,394 @@
+﻿diff --git a/MASTER_PROMPT_7_TAB_UI.md b/MASTER_PROMPT_7_TAB_UI.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..7c976f634c3c4b538942ffd78ceb69b508a2e2da
+--- /dev/null
++++ b/MASTER_PROMPT_7_TAB_UI.md
+@@ -0,0 +1,388 @@
++# 1) 7 SEKME UI SPESİFİKASYONU
++
++## Sekme 1 — `orders`
++- **Sekme Kimliği (data-tab):** `orders`
++- **Kullanıcıya Görünen Ad:** Sipariş Yönetimi
++- **Kartlar**
++  1. **Hızlı İşlemler**
++     - Alanlar: çalışma modu göstergesi (normal/dry-run), son tarama zamanı, son senkron durumu.
++     - Butonlar + ID:
++       - `#btnScanHesap`
++       - `#btnScanSmm`
++       - `#btnDryRun`
++       - `#btnSyncNow`
++     - Boş durum metni: “Henüz işlem başlatılmadı. Hesap veya SMM taraması başlatabilirsiniz.”
++  2. **Sipariş Filtreleri ve Derin Arama**
++     - Alanlar: platform seçimi (`hesap`, `anabayiniz`), sipariş durumu çoklu seçim, müşteri adı input, SMM ID input, global arama input.
++     - Butonlar + ID:
++       - `#btnOrdersApplyFilter`
++       - `#btnOrdersResetFilter`
++     - Boş durum metni: “Filtrelenebilir sipariş verisi bulunamadı.”
++  3. **Sonuç Önizleme**
++     - Alanlar: `#ordersPreviewWrap` tablo alanı, `#ordersEmpty` boş durum alanı, satır detay modalı (`#orderDetailModal`).
++     - Butonlar + ID:
++       - `#btnOrderDetailClose`
++     - Boş durum metni: “Önizleme için önce tarama yapın veya filtreleri temizleyin.”
++  4. **Dışa Aktarım**
++     - Alanlar: export format seçici, dosya adı önizleme, pano modu seçici (tablo/JSON).
++     - Butonlar + ID:
++       - `#btnOrdersExportMenu`
++       - `#btnOrdersExportJson`
++       - `#btnOrdersExportCsv`
++       - `#btnOrdersExportHtml`
++       - `#btnOrdersExportTxt`
++       - `#btnOrdersCopyClipboard`
++     - Boş durum metni: “Dışa aktarım için kayıt bulunamadı.”
++  5. **Google Sheets**
++     - Alanlar: salt-okunur entegrasyon özeti (Sheet ID, webhook sağlığı), filtreli kayıt adedi.
++     - Butonlar + ID:
++       - `#btnSheetsPush`
++     - Boş durum metni: “Sheets entegrasyonu doğrulanmadan gönderim yapılamaz.”
++- **Event akışı (UI → sw.js → content → sw.js → UI)**
++  - `#btnScanHesap`/`#btnScanSmm` tıklaması → `runtime.sendMessage(type: ui_start_scan_hesap/ui_start_scan_smm)`.
++  - `sw.js` worker tab açar, content script’e crawl komutu gönderir.
++  - content script `crawl_progress` ve `crawl_result` döner.
++  - `sw.js` normalize/dedup/senkron adımlarını yönetir, port broadcast ile UI’yı günceller.
++  - UI progress alanı, tablo ve export kartlarını anlık günceller.
++- **Validasyonlar / confirm / hata mesajları**
++  - Kritikler: toplu export ve Sheets push öncesi `confirm()` zorunlu.
++  - Filtrede müşteri adı/SMM ID trim edilir, boş aramalar engellenir.
++  - Hata mesajı örneği: “Tarama başlatılamadı. Arka plan servis çalışanını kontrol edin.”
++
++## Sekme 2 — `market`
++- **Sekme Kimliği:** `market`
++- **Kullanıcıya Görünen Ad:** Rakip ve Pazar Analizi
++- **Kartlar**
++  1. **Tarama Kontrolleri**
++     - Alanlar: platform dropdown, max page (1-50), tek sayfa tarama seçeneği.
++     - Butonlar + ID:
++       - `#btnMarketStart`
++       - `#btnMarketOnePage`
++       - `#btnMarketRegexTest`
++     - Boş durum metni: “Tarama ayarlarını yapıp başlatın.”
++  2. **Sonuç Önizleme**
++     - Alanlar: `#marketPreviewWrap` tablo.
++     - Boş durum metni: “Henüz pazar sonucu yok.”
++  3. **Etiket Motoru ve Filtreleme**
++     - Alanlar: platform/hizmet etiketleri, geçersiz eşleşmeyi gizle anahtarı, arama input.
++     - Butonlar + ID:
++       - `#btnMarketApplyTags`
++       - `#btnMarketResetTags`
++     - Boş durum metni: “Etiket kriterine uyan kayıt bulunamadı.”
++  4. **Dışa Aktarım**
++     - Butonlar + ID:
++       - `#btnMarketExport`
++       - `#btnMarketExportJson`
++       - `#btnMarketExportCsv`
++       - `#btnMarketExportHtml`
++       - `#btnMarketExportTxt`
++     - Boş durum metni: “Dışa aktarılacak pazar kaydı yok.”
++- **Event akışı**
++  - UI `ui_market_start` gönderir.
++  - `sw.js` hedef URL formatına göre tarama turu oluşturur.
++  - content script ilan verilerini toplar + highlight uygular + `crawl_result` döner.
++  - `sw.js` sonuçları yayınlar; UI tablo/etiketleri yeniler.
++- **Validasyonlar / confirm / hata mesajları**
++  - Max page 1-50 aralığı dışında engellenir.
++  - Export öncesi `confirm()`.
++  - Hata mesajı: “Platform/hizmet eşleşmesi çözümlenemedi; regex testi çalıştırın.”
++
++## Sekme 3 — `complaints`
++- **Sekme Kimliği:** `complaints`
++- **Kullanıcıya Görünen Ad:** Müşteri Şikayet Yönetimi
++- **Kartlar**
++  1. **Şikayet Kutusu**
++     - Butonlar + ID:
++       - `#btnComplaintDraft`
++       - `#btnComplaintSolution`
++       - `#btnComplaintEscalate`
++       - `#btnComplaintClose`
++     - Boş durum metni: “İşlenecek şikayet bulunamadı.”
++  2. **Liste + Detay**
++     - Alanlar: sol listede ID/müşteri/kanal/tarih/SLA kalan, sağda detay ve durum değiştirici.
++     - Butonlar + ID:
++       - `#btnComplaintSaveStatus`
++     - Boş durum metni: “Detay görmek için listeden bir şikayet seçin.”
++- **Event akışı**
++  - UI aksiyonları local state + gerekiyorsa `sw.js` mesajı ile yürütülür.
++  - AI taslak istekleri AI panel iş akışına bağlanır.
++  - Kayıt değişimleri storage üzerinden yayınlanır, UI otomatik tazelenir.
++- **Validasyonlar / confirm / hata mesajları**
++  - Eskale/Kapat için `confirm()` zorunlu.
++  - SLA hesaplamasında göreli tarih ifadeleri mutlak tarihe normalize edilir.
++  - Hata mesajı: “SLA tarihi çözümlenemedi, kaynak kayıt kontrol edilmeli.”
++
++## Sekme 4 — `rules`
++- **Sekme Kimliği:** `rules`
++- **Kullanıcıya Görünen Ad:** Kurallar ve Öğrenme Merkezi
++- **Kartlar**
++  1. **Öğrenme Kuyruğu**
++     - Butonlar + ID:
++       - `#btnRuleApprove`
++       - `#btnRuleReject`
++       - `#btnRuleOverride`
++       - `#btnRuleTest`
++     - Boş durum metni: “Bekleyen öğrenme kuralı yok.”
++  2. **Kural Listesi + Seçili Kural**
++     - Alanlar: `#rulesSummary`, `#rulesList`, `#ruleDetail` düzenleme formu.
++     - Butonlar + ID:
++       - `#btnRuleSave`
++     - Boş durum metni: “Kural seçilmedi.”
++  3. **Dinamik Kural Ekleme Paneli**
++     - Alanlar: URL kalıbı, hedef alan, regex, test metni, anlık eşleşme önizleme.
++     - Butonlar + ID:
++       - `#btnRuleDynamicTest`
++       - `#btnRuleDynamicSave`
++       - `#btnRuleAskAi`
++     - Boş durum metni: “Yeni kural ekleyerek öğrenme merkezini besleyin.”
++- **Event akışı**
++  - UI kural kararları storage.local kurallarına ve sw orchestration katmanına yazılır.
++  - Test aksiyonu lokal regex doğrulaması yapar, sonuç panelini yeniler.
++- **Validasyonlar / confirm / hata mesajları**
++  - Override için `confirm()` zorunlu.
++  - Regex boş/geçersiz ise kayıt engellenir.
++  - Hata mesajı: “Regex eşleşmesi bulunamadı; test metni veya desen güncellenmeli.”
++
++## Sekme 5 — `reports`
++- **Sekme Kimliği:** `reports`
++- **Kullanıcıya Görünen Ad:** Raporlar ve Otomasyon
++- **Kartlar**
++  1. **Raporlar**
++     - Butonlar + ID:
++       - `#btnReportDaily`
++       - `#btnReportWeekly`
++       - `#btnScheduler`
++       - `#btnPlaybooks`
++     - Boş durum metni: “Rapor üretmek için yeterli veri bulunamadı.”
++  2. **Offline Kuyruk ve Senkron**
++     - Alanlar: kuyruk adedi, son gönderim zamanı, hata sayısı.
++     - Butonlar + ID:
++       - `#btnQueueSync`
++       - `#btnQueueExport`
++     - Boş durum metni: “Offline kuyruk boş.”
++  3. **Export Şablonları**
++     - Alanlar: HTML/CSV/TXT şablon önizlemeleri.
++     - Butonlar + ID:
++       - `#btnReportTemplatePreview`
++     - Boş durum metni: “Şablon önizlemesi yok.”
++- **Event akışı**
++  - UI rapor komutları lokal veri toplar, özet üretir.
++  - Kuyruk senkron aksiyonu `ui_sync_now` ile `sw.js` katmanına aktarılır.
++  - `sw.js` başarı/hata telemetrisini UI’ya döner.
++- **Validasyonlar / confirm / hata mesajları**
++  - Playbook değişikliklerinde `confirm()`.
++  - Hata mesajı: “Rapor üretimi sırasında eksik veri tespit edildi.”
++
++## Sekme 6 — `files`
++- **Sekme Kimliği:** `files`
++- **Kullanıcıya Görünen Ad:** Chrome Eklenti Dosyaları
++- **Kartlar**
++  1. **Workspace Gezgini**
++     - Alanlar: `#fileFilter`, `#fileList`.
++     - Butonlar + ID:
++       - `#btnWorkspaceImport`
++       - `#btnWorkspaceExport`
++       - `#btnWorkspaceValidate`
++       - `#btnWorkspaceHistory`
++     - Boş durum metni: “Henüz workspace dosyası yüklenmedi.”
++  2. **Editör**
++     - Alanlar: `#activeFileName`, `#activeFileBadge`, `#codeEditor`.
++     - Butonlar + ID:
++       - `#btnSaveFile`, `#btnSaveAll`, `#btnUndo`, `#btnRedo`, `#btnFind`, `#btnReplace`, `#btnFormat`, `#btnJsonValidate`
++     - Boş durum metni: “Düzenlemek için bir dosya seçin.”
++  3. **Patch/Diff ve AI Yardımı**
++     - Butonlar + ID:
++       - `#btnAiPreviewPatch`
++       - `#btnAiApplyPatch`
++       - `#btnAiAnalyze`
++       - `#btnAiCopy`
++     - Boş durum metni: “AI önerisi yok; önce analiz başlatın.”
++- **Event akışı**
++  - UI dosya işlemleri workspace state’e yazılır.
++  - Manifest doğrulama `validateManifestMinimum` ile raporlanır.
++  - Patch önizleme modalı onaydan sonra değişiklik uygular.
++- **Validasyonlar / confirm / hata mesajları**
++  - Patch apply, dosya üzerine yazma ve toplu export için `confirm()`.
++  - JSON validate başarısızsa kaydetme engellenebilir.
++  - Sabit uyarı: “Kurulu eklentiyi yerinde değiştirmek mümkün değildir.”
++
++## Sekme 7 — `system` (Yeni)
++- **Sekme Kimliği:** `system`
++- **Kullanıcıya Görünen Ad:** Sistem ve Entegrasyon
++- **Kartlar**
++  1. **Canlı Durum**
++     - Alanlar: online/AI durum detayları, son online kontrol zamanı, son AI kontrol zamanı.
++     - Butonlar + ID:
++       - `#btnSystemRefreshNow`
++     - Boş durum metni: “Canlı durum henüz ölçülmedi.”
++  2. **Entegrasyon Doğrulama**
++     - Alanlar: salt-okunur Sheet ID, Webhook URL, doğrulama sonuç listesi.
++     - Butonlar + ID:
++       - `#btnSystemValidateIntegrations`
++       - `#btnSystemTestPayload`
++     - Boş durum metni: “Entegrasyon ayarı bulunamadı.”
++  3. **İzin ve Güvenlik**
++     - Alanlar: manifest izin raporu, PII maskeleme durumu, talimat saptırma koruması durumu.
++     - Butonlar + ID:
++       - `#btnSystemManifestAudit`
++     - Boş durum metni: “Henüz izin denetimi çalıştırılmadı.”
++  4. **Modlar ve Kurtarma**
++     - Alanlar: safe mode, verbose debug, dry run, son job durumu.
++     - Butonlar + ID:
++       - `#btnSystemResume`
++       - `#btnSystemStopAll`
++     - Boş durum metni: “Devam ettirilecek bekleyen iş bulunamadı.”
++- **Event akışı**
++  - UI timer (30 sn) yalnız sidepanel bağlamında durum yeniler.
++  - `#btnSystemTestPayload` ile `ui_test_integration` veya eşdeğer dry-run mesajı `sw.js`’e gider.
++  - `sw.js` doğrulama sonucu döner; UI kartları güncellenir.
++- **Validasyonlar / confirm / hata mesajları**
++  - Stop all, resume ve test payload için `confirm()`.
++  - Webhook `/exec` bitişi ve Sheet ID formatı doğrulanır.
++  - Hata mesajı: “Entegrasyon testi başarısız; ayarlar sayfasından kimlik bilgilerini kontrol edin.”
++
++---
++
++# 2) NORMALİZE EDİLMİŞ TÜRKÇE GEREKSİNİMLER
++
++1. Sidepanel, popup ve options bağlamları runtime seviyesi context guard ile kesin olarak ayrılmalıdır.
++2. Sidepanel arayüz iskeleti modüler biçimde runtime sırasında oluşturulmalı ve DOM’a enjekte edilmelidir.
++3. Aktif sekme yönetimi bellek sızıntısına yol açmadan state ile birlikte çalışmalıdır.
++4. İlerleme alanında yüzde, anlık mesaj ve kuyruk sayısı her zaman senkronize gösterilmelidir.
++5. Durdurma eylemi sw.js katmanına anlık iptal sinyali göndermeli ve UI durumunu sıfırlamalıdır.
++6. Dinamik filtreleme her karakter girişinde debounce uygulanarak yapılmalıdır.
++7. Etiket motoru platform ve hizmet etiketlerini üretmeli, geçersiz eşleşmeleri gizlemelidir.
++8. Derin filtreleme müşteri adı ve SMM ID üzerinden nokta atışı eşleştirme yapmalıdır.
++9. Dışa aktarım dosya adı slugify, tarih, PLATFORM_HIZMET_ADET ve arama terimi kurallarıyla üretilmelidir.
++10. Export arayüzü JSON, CSV, HTML ve TXT formatlarını desteklemelidir.
++11. Veri normalizasyonu uygulanmalı; CSV için UTF-8 BOM ve escape kuralları, HTML için responsive tablo, TXT için özet formatı sağlanmalıdır.
++12. Hedef API gönderimleri öncesinde JSON şema doğrulaması yapılmalıdır.
++13. Otomatik indirme Blob ve createObjectURL kullanılarak gerçekleştirilmelidir.
++14. Panoya kopyalama tablo veya JSON formatında desteklenmelidir.
++15. Sheets gönderimi runtime.sendMessage üzerinden payload ile başlatılmalıdır.
++16. Ayar entegrasyonları storage.local değerleri doğrulanarak kullanılmalıdır.
++17. Canlı durum bilgileri 30 saniyede bir güncellenmelidir.
++18. AI paneli model seçimi ve prompt yönetimini durum odaklı şekilde yürütmelidir.
++19. AI iş akışı patpat.ai başarısız olduğunda puter.ai, ardından simülasyon fallback zincirini uygulamalıdır.
++20. Değişiklikler için patch/diff önizleme mekanizması zorunlu olmalıdır.
++21. Editörde undo ve redo işlemleri tutarlı şekilde çalışmalıdır.
++22. Workspace verisi ZIP ve JSON biçimlerinde içe/dışa aktarılabilmelidir.
++23. Manifest izin denetimi minimum izin yaklaşımıyla çalışmalıdır.
++24. Content starter hedef sayfalarda tarama rutinini güvenli biçimde tetiklemelidir.
++25. Tarama protokolü sayfa formasyonuna göre algoritmik olarak uyarlanmalıdır.
++26. Taranan öğeler içerik tarafında görsel highlight ile işaretlenmelidir.
++27. Mod geçişleri sırasında veri kaybı olmamalıdır.
++28. Regex rafineri fiyat, sayı, tarih ve whitespace normalizasyonu içermelidir.
++29. Kayıt benzersizliği hash tabanlı dedup ile sağlanmalıdır.
++30. Sonuç iletişimi crawl_result mesajı ve teyit mekanizması ile tamamlanmalıdır.
++31. Durum dinleyicisi sw broadcast akışını UI’ya güvenli şekilde yansıtmalıdır.
++32. Hata sonrası kullanıcı deneyimi yeniden dene ve kaldığı yerden devam akışı içermelidir.
++33. Hata toleransı try/catch blokları ile sağlanmalıdır.
++34. Mükerrer event bağlarını önlemek için bindOnce standardı uygulanmalıdır.
++35. Kod tabanı hafif ve optimize tutulmalıdır.
++36. PII içeren veriler dışa aktarım ve entegrasyon gönderimlerinde maskelenmelidir.
++37. Ortam belirleme data-page attribute değerine göre yapılmalıdır.
++38. Log yönetimi üretim modunda graceful fail yaklaşımı ile çalışmalıdır.
++
++---
++
++# 3) DOSYA BAZLI PATCH PLANI
++
++## `sidepanel.html`
++- **Değişecek bölümler**
++  - Tabbar alanına yedinci sekme butonu eklenir: `data-tab="system"`.
++  - `<main>` içinde yeni `section.tabpanel[data-tabpanel="system"]` eklenir.
++  - `system` sekmesine ait dört kart yapısı (Canlı Durum, Entegrasyon Doğrulama, İzin ve Güvenlik, Modlar ve Kurtarma) eklenir.
++- **Eklenecek ID’ler**
++  - `#btnSystemRefreshNow`, `#btnSystemValidateIntegrations`, `#btnSystemTestPayload`, `#btnSystemManifestAudit`, `#btnSystemResume`, `#btnSystemStopAll`.
++  - Durum alanları: `#systemOnlineLastCheck`, `#systemAiLastCheck`, `#systemSheetId`, `#systemWebhookUrl`, `#systemValidationList`, `#systemModeSummary`.
++- **Eklenecek fonksiyonlar (bundle tarafı ile eşlenik)**
++  - Doğrudan HTML’de fonksiyon yok; ilgili ID’ler bundle.js bağlamında işlenecek.
++- **Geriye dönük uyumluluk notları**
++  - Mevcut altı sekme ID’si korunur.
++  - CSS sınıfları yeniden kullanılmalı, yeni bağımlılık eklenmemelidir.
++- **Kabul kriterleri**
++  - 7 sekme görünür ve sekme geçişleri bozulmadan çalışır.
++  - `system` paneli hidden/visible davranışı mevcut sekmelerle tutarlıdır.
++
++## `bundle.js` (sidepanel.js bölümü)
++- **Değişecek bölümler**
++  - `TAB_MAP` içine `system` girdisi eklenir (Türkçe başlık/açıklama).
++  - `UI.init()` element referanslarına system sekmesi ID’leri eklenir.
++  - `renderTabs()` sekme sayısını dinamik okuyacak şekilde sağlamlaştırılır.
++  - `bindEvents()` içinde yeni butonlar bindOnce standardı ile bağlanır.
++  - Sidepanel bağlamında tekil 30 sn canlı durum timer fonksiyonu eklenir.
++- **Eklenecek ID bağları**
++  - Yukarıda listelenen tüm `system` buton/alan ID’leri.
++- **Eklenecek fonksiyonlar**
++  - `initSystemPanel()`
++  - `refreshSystemStatus({ silent })`
++  - `validateIntegrationsReadOnly()`
++  - `runManifestAuditFromWorkspace()`
++  - `handleSystemResume()`
++  - `startSystemStatusTimerOnce()`
++- **Geriye dönük uyumluluk notları**
++  - Var olan komut tipleri (`ui_start_scan_*`, `ui_sync_now`, `ui_market_start`, `ui_stop`) değişmeden kalır.
++  - Files sekmesi AI patch koşulları korunur.
++- **Kabul kriterleri**
++  - Yeni sekmede tüm butonlar tek kez tetiklenir.
++  - Timer yalnız sidepanel’de bir kez başlar ve sekme değişimlerinde çoğalmaz.
++
++## `bundle.js` (page-ops.js + page-support.js entegrasyonu)
++- **Değişecek bölümler**
++  - `system` sekmesine özel init akışı eklenir.
++  - Entegrasyon doğrulama, mod göstergesi ve manifest raporu için yardımcı metotlar genişletilir.
++- **Eklenecek fonksiyonlar**
++  - Alternatif A: yeni modül benzeri `PageSystem.init(UI)`.
++  - Alternatif B: mevcut modüllere `initSystemTools`, `getIntegrationHealth`, `getModeStateSummary` fonksiyonları.
++- **Geriye dönük uyumluluk notları**
++  - Orders/market/complaints/rules/report/files akışlarının event isimleri korunur.
++- **Kabul kriterleri**
++  - System sekmesi verileri doğru kaynaklardan okunur ve başka sekmeleri etkilemez.
++
++## `sw.js`
++- **Değişecek bölümler**
++  - Gerekirse yeni mesaj tipi eklenir: `ui_test_integration` (dry-run).
++  - `ui_stop` akışı UI reset beklentisi ile uyumlu telemetry döndürür.
++- **Eklenecek fonksiyonlar**
++  - `handleIntegrationTest(msg)`
++  - `emitUiResetHint(jobId|reason)`
++- **Geriye dönük uyumluluk notları**
++  - Service worker’ın non-persistent çalışma modeli korunur.
++  - Mevcut crawl/orchestration kodu kırılmadan genişletilir.
++- **Kabul kriterleri**
++  - Stop sonrası UI beklenen şekilde nötr duruma döner.
++  - Dry-run test payload gerçek gönderim yapmadan doğrulama sonucu üretir.
++
++## `options.html`
++- **Değişecek bölümler**
++  - Doğrudan zorunlu değişiklik yok.
++  - System sekmesi için gerekli kritik alanların salt-okunur özetinin kaynak uyumu korunur.
++- **Geriye dönük uyumluluk notları**
++  - Options bağımsız ayar ekranı olmaya devam eder.
++- **Kabul kriterleri**
++  - System sekmesinde gösterilen ayar özeti options kaynağıyla uyumlu kalır.
++
++## `manifest.json`
++- **Değişecek bölümler**
++  - Bu çalışma kapsamında yeni izin eklenmez.
++  - Side panel yapılandırması mevcut haliyle korunur.
++- **Geriye dönük uyumluluk notları**
++  - Minimum izin prensibi korunur.
++- **Kabul kriterleri**
++  - Eklenti yüklenebilirliği ve mevcut host/permission denetimi bozulmaz.
++
++---
++
++# 4) TEST CHECKLIST
++
++1. Sekme çubuğunda 7 sekme görünürlüğü ve sekmeler arası geçişin hatasız çalışması doğrulandı.
++2. Progress alanında yüzde, adım metni, kuyruk sayısı ve job etiketi canlı senkron doğrulandı.
++3. Stop eyleminde `ui_stop` mesajı, iş iptali ve UI reset davranışı doğrulandı.
++4. Orders ve market export menülerinde JSON/CSV/HTML/TXT üretimi ile dosya adı kuralı doğrulandı.
++5. Sheets push öncesi entegrasyon doğrulaması ve payload gönderim akışı doğrulandı.
++6. Rules sekmesinde approve/reject/override/test akışları ve confirm noktaları doğrulandı.
++7. Files sekmesinde undo/redo, JSON validate, patch preview/apply ve bindOnce davranışı doğrulandı.
++8. Manifest izin denetimi raporunun minimum izin yaklaşımına göre üretildiği doğrulandı.
++9. System sekmesinde 30 saniye canlı durum yenileme timer’ının tekil çalıştığı doğrulandı.
++10. Offline kuyruk, sync now ve rapor otomasyonu akışlarının geriye dönük uyumluluğu doğrulandı.

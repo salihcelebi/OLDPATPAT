@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PATPAT • ŞİKAYET</title>
+  <style>
+    :root{--bg:#102216;--card:#173323;--line:rgba(255,255,255,.12);--text:#ecfff2;--muted:#b6dec2;--danger:#cf2f38;--dangerH:#e13e47}
+    body{margin:0;background:linear-gradient(180deg,#102216,#122a1b);color:var(--text);font-family:system-ui}
+    .wrap{padding:14px;position:relative}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.control{display:flex;flex-direction:column;gap:4px;min-width:150px}
+    .btn,input,textarea,select{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
+    textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;min-width:1120px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:999px;background:rgba(207,47,56,.7);color:#fff;font-weight:900;padding:8px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
+    .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
+ 
+    .btn,input,textarea,select{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
+    textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;min-width:1120px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:999px;background:rgba(207,47,56,.7);color:#fff;font-weight:900;padding:8px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
+    .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
+    .btn,input,textarea{height:36px;border-radius:10px;border:1px solid var(--line);background:#163021;color:var(--text);padding:0 10px}
+    textarea{height:auto;padding:10px}.btn{cursor:pointer}.hint,.empty{color:var(--muted);font-size:13px}
+ codex/integrate-puter.js-in-all-specified-files
+    table{width:100%;border-collapse:collapse;min-width:1120px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
+    .grid{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:12px;background:var(--danger);color:#fff;font-weight:900;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25);z-index:9999}
+    .fs:hover{background:var(--dangerH)} .active-row{background:rgba(109,217,165,.1)} [title]{cursor:help}
+    table{width:100%;border-collapse:collapse;min-width:1050px} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:12px}
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.12)}
+    .grid{display:grid;grid-template-columns:1.1fr 1.2fr 1fr;gap:10px}.flowlog{max-height:180px;overflow:auto;border:1px dashed var(--line);padding:10px;border-radius:10px;background:rgba(0,0,0,.18);white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:12px;background:var(--danger);color:#fff;font-weight:900;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25)}
+    .fs:hover{background:var(--dangerH)}
+ main
+ main
+  </style>
+</head>
+<body data-page="sidepanel">
+  <div class="wrap" id="complaintRoot">
+    <button class="fs" id="btnComplaintFullscreen" type="button">TAM</button>
+
+    <button class="fs" id="btnComplaintFullscreen" type="button">TAM EKRAN GÖSTER</button>
+ main
+    <div class="card layout-3">
+      <div class="row">
+        <div class="control"><b>Sayfa</b><input id="inpComplaintPages" type="number" min="1" max="50" value="3"/></div>
+        <div class="control"><b>Bugün</b><input id="inpComplaintToday" type="text"/></div>
+        <div class="control"><b>Gün Aralığı</b><input id="inpComplaintDays" type="number" min="1" max="60" value="3"/></div>
+        <div class="control"><b>NID</b><input id="inpComplaintNid" type="number" min="-100" max="500" value="0"/></div>
+        <div class="hint" id="complaintNidValue">NID: 0</div><div class="hint" id="selCount">SEÇİLİ: 0</div>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="btnComplaintVerify" title="Aktif sekmede oturum var mı kontrol eder">Oturum Doğrula</button>
+        <button class="btn" id="btnComplaintScan" title="Şikayet taramasını başlatır">Taramayı Başlat</button>
+        <button class="btn" id="btnComplaintStop" title="Devam eden şikayet taramasını durdurur">Durdur</button>
+        <button class="btn" id="btnComplaintFindReporter" title="Şikayetçiyi bulur, siparişi açar ve mesaj yollar">Şikayetçiyi Bul + Mesaj Gönder</button>
+        <button class="btn" id="btnOpenTemplateSettings" title="Şablon ayarları ekranını açar">Şablon Ayarları</button>
+        <button class="btn" id="btnRulesExport" title="Kurallar ve şablonları JSON olarak dışa aktarır">Rule Export</button>
+        <button class="btn" id="btnRulesImport" title="Kurallar ve şablonları JSON dosyasından içe aktarır">Rule Import</button>
+        <input id="inpRulesImport" type="file" accept="application/json" hidden>
+      </div>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="btnComplaintDraft" title="Seçili kayıt için taslak üretir">Yanıt Taslağı</button>
+        <button class="btn" id="btnComplaintSolution" title="Taslağa çözüm notu ekler">Çözüm Öner</button>
+        <button class="btn" id="btnComplaintEscalate" title="Seçili şikayeti yöneticiye eskale eder">Yöneticiye Eskale</button>
+        <button class="btn" id="btnComplaintClose" title="Şikayeti kapatır ve arşivler">Şikayeti Kapat</button>
+        <button class="btn" id="btnBulkDraft" title="Çoklu seçimi kullanarak toplu taslak hazırlar">Toplu Taslak</button>
+        <button class="btn" id="btnBulkEscalate" title="Çoklu seçimi toplu eskale eder">Toplu Eskale</button>
+        <button class="btn" id="btnBulkClose" title="Çoklu seçimi toplu kapatır">Toplu Kapat</button>
+      </div>
+
+      <div class="row" style="margin-top:8px"><input id="inpComplaintSearch" type="text" placeholder="Ara: hizmet, sipariş no, SMM ID, durum, sorun satırı" style="min-width:320px"/></div>
+      <div class="hint" id="complaintTargetDays">Hedef günler: —</div>
+      <div class="hint" id="complaintStats">Kayıt: 0 • SLA Risk: 0</div>
+      <div class="hint" id="complaintActionHint">Hazır.</div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="toggleLog" title="Şikayetçi tespit log alanını aç/kapat">Şikayetçi Tespit Logu Aç/Kapat</button></div>
+      <pre id="complaintFlowLog" class="flowlog" hidden></pre>
+    </div>
+
+    <div class="card">
+      <div class="tableWrap">
+        <table>
+          <thead><tr><th>Seç</th><th>Hizmet</th><th>Sipariş No</th><th>SMM ID</th><th>Tarih</th><th>Sorun Satırı</th><th>SLA</th><th>Fiyat</th><th>Durum</th><th>Sayfa</th><th>Kart</th></tr></thead>
+          <tbody id="tblComplaintBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="complaintTableEmpty" style="margin-top:8px">Henüz tablo verisi yok.</div>
+    </div>
+
+    <div class="card">
+      <div class="grid">
+        <div><div class="hint">Liste</div><div id="complaintsList" style="max-height:320px;overflow:auto"></div></div>
+        <div><div class="hint">Detay</div><div id="complaintDetail" style="min-height:220px"></div><div class="hint" style="margin-top:8px">Eskale Kayıtları</div><div id="escalationPanel" style="max-height:140px;overflow:auto"></div></div>
+        <div><div class="hint">Eylem</div><textarea id="complaintDraftText" style="min-height:220px" placeholder="Yanıt taslağı burada oluşur."></textarea><div class="row" style="margin-top:8px"><button class="btn" id="btnComplaintCopyDraft">Taslağı Kopyala</button><button class="btn" id="btnComplaintOpenMessage">Mesaj Sayfasına Git</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="puter_doctor.js"></script>
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="puter.js"></script>
+  <script src="sikayet.js"></script>
+</body>
+</html>

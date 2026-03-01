@@ -162,7 +162,7 @@ function newJobId(prefix) {
 
 function createJob(prefix) {
   const jobId = newJobId(prefix);
-  JOBS.set(jobId, { cancelled: false, workerTabs: new Set() });
+  JOBS.set(jobId, { cancelled: false, stopByDate: false, workerTabs: new Set() });
   return jobId;
 }
 
@@ -383,15 +383,29 @@ async function runScanJob(jobId, mode, urls, uiOptions = {}) {
   safeLog("Bilgi", `Job başladı: ${mode}`);
   broadcastProgress({ jobName: mode, progress: 0, step: "Başlatıldı", queue: await queueCount() });
 
-  for (let i = 0; i < urls.length; i++) {
+  const maxPages = Math.max(1, Math.min(50, Number(uiOptions?.maxPages || 3)));
+  const lookbackDays = Math.max(1, Math.min(365, Number(uiOptions?.lookbackDays || 5)));
+  const nid = Math.max(-100, Math.min(500, Number(uiOptions?.nid || 0)));
+  const totalSteps = mode === "hesap_orders" ? (maxPages + 1) : urls.length;
+
+  for (let i = 0; i < totalSteps; i++) {
     if (isCancelled(jobId)) break;
 
-    const url = urls[i];
-    const pct = Math.round(((i) / urls.length) * 100);
+    const isBaseStep = mode === "hesap_orders" && i === 0;
+    const pageNo = mode === "hesap_orders" ? i : 0;
+    const url = mode === "hesap_orders"
+      ? (isBaseStep
+        ? "https://hesap.com.tr/p/sattigim-ilanlar"
+        : `https://hesap.com.tr/p/sattigim-ilanlar?page=${pageNo}`)
+      : urls[i];
+
+    const pct = Math.round((i / totalSteps) * 100);
     broadcastProgress({
       jobName: mode,
       progress: pct,
-      step: `Sayfa açılıyor (${i + 1}/${urls.length})`,
+      step: isBaseStep
+        ? "Ana sayfa açılıyor"
+        : `Sayfa açılıyor (${i}/${mode === "hesap_orders" ? maxPages : urls.length})`,
       queue: await queueCount()
     });
 
@@ -406,26 +420,39 @@ async function runScanJob(jobId, mode, urls, uiOptions = {}) {
         queue: await queueCount()
       });
 
-      // content script’e komut
       await ensureContentScripts(tabId);
       await sendMessageWithRetry(tabId, {
         type: "crawl",
         mode,
         url,
         options: {
-          // UI'dan gelen opsiyonlar (dryRun vb.)
           safeMode: Boolean(uiOptions && uiOptions.safeMode),
-          dryRun: Boolean(uiOptions && uiOptions.dryRun)
+          dryRun: Boolean(uiOptions && uiOptions.dryRun),
+          page: pageNo || 1,
+          maxPages,
+          lookbackDays,
+          nid,
+          jobId
         }
       });
 
       safeLog("Bilgi", `Tarama komutu gönderildi: ${url}`);
+
+      if (JOBS.get(jobId)?.stopByDate) {
+        safeLog("Bilgi", "Tarih limiti dışına çıkıldığı için tarama durduruldu.");
+        break;
+      }
     } catch (e) {
       safeLog("Hata", `Tarama akışı hatası: ${url} • ${formatErr(e)}`);
+      if (tabId && !isCancelled(jobId)) {
+        try { await chrome.tabs.reload(tabId); } catch {}
+      }
     } finally {
-      // Worker tab kapatma (kilitli kural: active:false açılır; iş bitince kapat)
       if (tabId && !isCancelled(jobId)) {
         try { await chrome.tabs.remove(tabId); } catch {}
+      }
+      if (!isCancelled(jobId)) {
+        await sleep(1000 + Math.floor(Math.random() * 2000));
       }
     }
   }
@@ -843,3 +870,14 @@ function sortKeysDeep(x) {
   }
   return x;
 }
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'puter_model_set') {
+    chrome.storage.local.set({ patpat_puter_model: msg.model || 'gpt-4o' }).then(() => sendResponse?.({ ok: true }));
+    return true;
+  }
+  if (msg?.type === 'puter_model_get') {
+    chrome.storage.local.get('patpat_puter_model').then((v) => sendResponse?.({ model: v.patpat_puter_model || 'gpt-4o' }));
+    return true;
+  }
+  return false;
+});

@@ -719,7 +719,7 @@
   const UI = {
     els: {},
     state: {
-      activeTab: 'orders',
+      activeTab: 'system',
       online: 'bilinmiyor',
       site: '—',
       aiModel: '',
@@ -860,7 +860,7 @@
 
     renderTabs() {
       // Sekme başlık + açıklama
-      const info = TAB_MAP[this.state.activeTab] || TAB_MAP.orders;
+      const info = TAB_MAP[this.state.activeTab] || TAB_MAP.system;
       this.els.tabTitle.textContent = info.title;
       this.els.tabDesc.textContent = info.desc;
 
@@ -1023,6 +1023,10 @@
     complaints: {
       title: 'Müşteri Şikayet Yönetimi',
       desc: 'Şikayetleri sınıflandır, SLA takip et ve yanıt taslakları üret.'
+    },
+    smm: {
+      title: 'SMM Yönetimi',
+      desc: 'SMM akışını ayrı sekmede izleyip tüm sistemle uyumlu yönet.'
     },
     rules: {
       title: 'Kurallar ve Öğrenme Merkezi',
@@ -1665,6 +1669,25 @@
   }
 
 function bindEvents() {
+    function askScanNumber(label, defaultVal, min, max) {
+      const raw = prompt(`${label} (${min}-${max})`, String(defaultVal));
+      if (raw == null) return null;
+      const n = Number(raw);
+      if (!Number.isFinite(n)) return defaultVal;
+      return Math.max(min, Math.min(max, Math.trunc(n)));
+    }
+
+    function formatTrDate(d) {
+      const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+      return `${d.getDate()} ${months[d.getMonth()]}`;
+    }
+
+    function bindClickAny(ids, key, handler) {
+      for (const id of ids) {
+        const el = byId(id);
+        bindOnce(el, 'click', handler, `${key}_${id}`);
+      }
+    }
     // Sekmeler
     document.querySelectorAll('.tab').forEach((btn) => {
       bindOnce(btn, 'click', () => safeTry('Sekme değişimi', () => {
@@ -1707,10 +1730,10 @@ function bindEvents() {
     }), 'clear');
 
     // Yardım
-    UI.els.btnHelp.addEventListener('click', () => safeTry('Yardım', () => {
+    bindOnce(UI.els.btnHelp, 'click', () => safeTry('Yardım', () => {
       UI.toast('İpucu: Sekme seç, ana butonlarla işlemi başlat.');
       UI.log('Bilgi', 'Yardım gösterildi.');
-    }));
+    }), 'help');
 
     bindOnce(UI.els.btnSystemRefreshNow, 'click', () => safeTry('Sistem yenile', () => refreshSystemStatus(false)), 'sys-refresh');
     bindOnce(UI.els.btnSystemValidateIntegrations, 'click', () => safeTry('Entegrasyon doğrula', () => refreshSystemStatus(false)), 'sys-validate');
@@ -1953,6 +1976,13 @@ function bindEvents() {
 
   // Yardımcı
   function byId(id) { return document.getElementById(id); }
+  function byIdAny(...ids) {
+    for (const id of ids) {
+      const el = byId(id);
+      if (el) return el;
+    }
+    return null;
+  }
   function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
   function escapeHtml(s) {
@@ -3067,16 +3097,66 @@ function bindEvents() {
     return false;
   }
 
+  const DATE_TIME_REGEX = /\b\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}\b/;
+
+  function buildTargetDaySet(lookbackDays = 5) {
+    const out = new Set();
+    const base = new Date();
+    for (let i = 0; i < Math.max(1, lookbackDays); i++) {
+      const d = new Date(base.getTime() - (i * 86400000));
+      out.add(`${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    return out;
+  }
+
+  function speedFactorFromNid(nid) {
+    return Math.max(0.25, 1 + (Number(nid || 0) / 100));
+  }
+
+  async function humanPause(baseMs, nid, signal) {
+    const factor = speedFactorFromNid(nid);
+    const jitter = 0.75 + (Math.random() * 0.9);
+    const waitMs = Math.max(80, Math.round((baseMs / factor) * jitter));
+    return sleep(waitMs, signal);
+  }
+
+  async function humanizePage(signal, nid) {
+    const steps = 2 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < steps; i++) {
+      if (signal?.aborted) throw new Error('ABORTED');
+      const y = Math.floor((window.innerHeight * (0.2 + Math.random() * 1.7)) * (i + 1));
+      window.scrollTo({ top: y, behavior: 'smooth' });
+      try {
+        document.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true,
+          clientX: Math.floor(20 + Math.random() * Math.max(50, window.innerWidth - 40)),
+          clientY: Math.floor(20 + Math.random() * Math.max(50, window.innerHeight - 40))
+        }));
+      } catch {}
+      await humanPause(700 + Math.random() * 900, nid, signal);
+    }
+  }
+
+  function pickByKeys(obj, keys) {
+    const entries = Object.entries(obj || {});
+    for (const [k, v] of entries) {
+      const lk = String(k).toLowerCase();
+      if (keys.some((x) => lk.includes(x))) return String(v || '').trim();
+    }
+    return '';
+  }
+
   // ─────────────────────────────────────────────────────────────
   // Modlar
   // ─────────────────────────────────────────────────────────────
-  async function crawlOrders({ mode, onProgress, signal, cancel }) {
+  async function crawlOrders({ mode, options, onProgress, signal, cancel }) {
     onProgress?.({ step: 'DOM hazırlanıyor', pct: 10 });
     await waitDomIdle(signal);
 
     if (cancel?.()) return { rows: [], meta: {}, errors: ['CANCELLED'] };
 
     onProgress?.({ step: 'Tablo aranıyor', pct: 25 });
+    await humanizePage(signal, options?.nid);
     const table = bestTable();
     if (!table) {
       return {
@@ -3089,6 +3169,9 @@ function bindEvents() {
     onProgress?.({ step: 'Satırlar çıkarılıyor', pct: 55 });
     const rawRows = extractTableRows(table, 700);
 
+    const targetDays = buildTargetDaySet(Number(options?.lookbackDays || 5));
+    const page = Number(options?.page || 1);
+
     onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
     const rows = rawRows.map((r) => {
       const rowId = pickIdFromRow(r);
@@ -3098,12 +3181,22 @@ function bindEvents() {
         url: location.href,
         ...r
       };
-    });
+    }).filter(Boolean);
+
+    const outsideLimit = rawRows.length > 0 && rows.length === 0;
 
     return {
       rows,
-      meta: { url: location.href, mode, scannedAt: Date.now(), count: rows.length },
-      errors: []
+      meta: {
+        url: location.href,
+        mode,
+        scannedAt: Date.now(),
+        count: rows.length,
+        page,
+        targetDays: Array.from(targetDays),
+        stopReason: outsideLimit ? 'OUTSIDE_DATE_LIMIT' : ''
+      },
+      errors: outsideLimit ? ['DATE_LIMIT_EXCEEDED'] : []
     };
   }
 
@@ -3186,7 +3279,7 @@ function bindEvents() {
       }
 
       // default: sipariş taraması
-      return await crawlOrders({ mode, onProgress, signal, cancel });
+      return await crawlOrders({ mode, options, onProgress, signal, cancel });
     } catch (e) {
       const msg = (e && e.message) ? e.message : String(e);
       return {
@@ -3423,7 +3516,7 @@ function bindEvents() {
               type: "crawl_result",
               mode,
               rows: result.rows || [],
-              meta: result.meta || { url },
+              meta: { ...(result.meta || { url }), jobId: String(options?.jobId || "") },
               errors: result.errors || []
             });
 
@@ -3433,7 +3526,7 @@ function bindEvents() {
               type: "crawl_result",
               mode,
               rows: [],
-              meta: { url, runId: activeRun?.id || "" },
+              meta: { url, runId: activeRun?.id || "", jobId: String(options?.jobId || "") },
               errors: ["CRAWL_FAILED", formatErr(e)]
             });
           } finally {
@@ -3823,3 +3916,14 @@ function bindEvents() {
   boot();
 })();
 /* ===== END options.js ===== */
+
+/* ===== PUTER ENTEGRASYONU (ortak) ===== */
+(() => {
+  if (typeof window === 'undefined') return;
+  window.addEventListener('DOMContentLoaded', () => {
+    const popupWrap = document.querySelector('.wrap');
+    if (document.body?.dataset?.page === 'popup' && popupWrap) {
+      window.PatpatPuter?.autoMount?.({ page: 'Popup', rootSelector: '.wrap', enableImage: false });
+    }
+  });
+})();
