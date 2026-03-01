@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>PATPAT • SİPARİŞ</title>
+  <style>
+    :root{--bg:#0d1329;--card:#162247;--line:rgba(255,255,255,.12);--text:#e8eeff;--muted:#9fb0dd;--danger:#cf2f38;--dangerH:#e13e47}
+    body{margin:0;background:linear-gradient(180deg,#0d1329,#111a35);color:var(--text);font-family:system-ui}
+    .wrap{padding:14px;position:relative}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}.btn,select,input{height:36px;border-radius:10px;border:1px solid var(--line);background:#101a35;color:var(--text);padding:0 10px}.btn{cursor:pointer}
+    table{width:100%;border-collapse:collapse;min-width:900px} th,td{border-bottom:1px solid var(--line);padding:8px;text-align:left}.empty,.hint{color:var(--muted)}
+    .fs{position:absolute;top:14px;right:14px;border:0;border-radius:12px;background:var(--danger);color:#fff;font-weight:900;padding:10px 12px;cursor:pointer;box-shadow:0 8px 18px rgba(0,0,0,.25)}
+    .fs:hover{background:var(--dangerH)}
+  </style>
+</head>
+<body data-page="sidepanel">
+  <div class="wrap" id="siparisRoot">
+    
+    <div class="card"><h3>Hesap Sattığım İlanlar Taraması</h3><div class="row"><select id="selSiparisStatus"><option value="all">Tüm Durumlar</option><option value="pending">pending</option><option value="processing">processing</option><option value="completed">completed</option><option value="cancelled">cancelled</option><option value="returnprocess">returnprocess</option></select><input id="inpSiparisMaxPage" type="number" min="1" max="50" value="5"/><button class="btn" id="btnSiparisStart">Taramayı Başlat</button><button class="btn" id="btnSiparisStop">Durdur</button><button class="btn" id="btnSiparisClear">Temizle</button><button class="btn" id="btnSiparisCopyMd">MD Kopyala</button><button class="btn" id="btnSiparisExportJson">JSON</button><button class="btn" id="btnSiparisExportCsv">CSV</button></div><div class="hint" id="siparisStats">Satır: 0 • Atılan: 0 • Durum: beklemede</div></div>
+    <div class="card" style="overflow:auto"><table><thead><tr><th>İlan Başlığı</th><th>Sipariş No</th><th>SMM ID</th><th>Tarih</th><th>Durum</th><th>Tutar</th><th>Kullanıcı</th></tr></thead><tbody id="tblSiparisBody"></tbody></table><div class="empty" id="ordersEmpty">Henüz sipariş verisi yok.</div></div>
+  </div>
+  <script src="siparis.js"></script>
+  <script src="puter_doctor.js"></script>
+ codex/integrate-puter.js-in-all-specified-files
+  <script src="puter_doctor.js"></script>
+ main
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="puter.js"></script>
+</body>
+</html>

@@ -39,9 +39,7 @@ const STORAGE_KEYS = Object.freeze({
   settings: "patpat_settings",
   instruction: "patpat_instruction",
   offlineQueue: "patpat_offline_queue",
-  lastSentMap: "patpat_last_sent_map",
-  previewOrders: "patpat_preview_orders",
-  previewMarket: "patpat_preview_market"
+  lastSentMap: "patpat_last_sent_map"
 });
 
 // ──────────────────────────────────────────────────────────────
@@ -225,16 +223,6 @@ if (msg?.type === "crawl_progress") {
   if (msg?.type === "ui_stop") {
     cancelAllJobs();
     sendResponse?.({ ok: true });
-    return true;
-  }
-
-  if (msg?.type === "ui_clear_ui_state") {
-    clearUiPreviewState().then(() => sendResponse?.({ ok: true })).catch(() => sendResponse?.({ ok: false }));
-    return true;
-  }
-
-  if (msg?.type === "ui_test_integration") {
-    integrationDryRun().then((res) => sendResponse?.({ ok: true, ...res })).catch((e) => sendResponse?.({ ok: false, error: formatErr(e) }));
     return true;
   }
 
@@ -542,11 +530,8 @@ async function handleCrawlResult(msg, sender) {
   }
 
   if (mode === "market_scan") {
-    await appendPreviewRows(STORAGE_KEYS.previewMarket, rows, { mode, meta });
     return;
   }
-
-  await appendPreviewRows(STORAGE_KEYS.previewOrders, rows, { mode, meta });
 
   // Sipariş modlarında webhook senkronu
   const payload = {
@@ -601,30 +586,6 @@ async function rememberSent(rows) {
   }
 
   await setLocal(STORAGE_KEYS.lastSentMap, map);
-}
-
-
-async function appendPreviewRows(key, rows, meta = {}) {
-  const current = (await getLocal(key)) || { rows: [] };
-  const existing = Array.isArray(current.rows) ? current.rows : [];
-  const merged = existing.concat(Array.isArray(rows) ? rows : []);
-  await setLocal(key, { rows: merged, updatedAt: Date.now(), meta });
-}
-
-async function clearUiPreviewState() {
-  await setLocal(STORAGE_KEYS.previewOrders, { rows: [], clearedAt: Date.now() });
-  await setLocal(STORAGE_KEYS.previewMarket, { rows: [], clearedAt: Date.now() });
-  broadcastProgress({ jobName: 'ui', progress: 0, step: 'UI durumu temizlendi', queue: await queueCount() });
-}
-
-async function integrationDryRun() {
-  const settings = (await getLocal(STORAGE_KEYS.settings)) || {};
-  const webhook = String(settings.webhookUrl || '');
-  const sheets = String(settings.sheetsId || '');
-  const webhookOk = webhook.endsWith('/exec');
-  const sheetsOk = sheets.length > 20;
-  safeLog('Bilgi', `Dry-run entegrasyon testi: webhook=${webhookOk ? 'ok' : 'hata'}, sheets=${sheetsOk ? 'ok' : 'hata'}`);
-  return { webhookOk, sheetsOk };
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -876,3 +837,14 @@ function sortKeysDeep(x) {
   }
   return x;
 }
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === 'puter_model_set') {
+    chrome.storage.local.set({ patpat_puter_model: msg.model || 'gpt-4o' }).then(() => sendResponse?.({ ok: true }));
+    return true;
+  }
+  if (msg?.type === 'puter_model_get') {
+    chrome.storage.local.get('patpat_puter_model').then((v) => sendResponse?.({ model: v.patpat_puter_model || 'gpt-4o' }));
+    return true;
+  }
+  return false;
+});
