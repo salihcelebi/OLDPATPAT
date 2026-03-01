@@ -755,18 +755,7 @@
         btnClear: byId('btnClear'),
         btnStop: byId('btnStop'),
         // Hızlı işlemler (Sipariş)
-        btnScanHesap: byIdAny('btnScanHesap', 'btnSiparisStart'),
-        btnScanSmm: byIdAny('btnScanSmm', 'btnSmmStart'),
-        btnDryRun: byIdAny('btnDryRun'),
-        btnSyncNow: byIdAny('btnSyncNow'),
 
-        // Rakip/pazar
-        btnMarketStart: byIdAny('btnMarketStart', 'btnRakipStart'),
-        btnMarketOnePage: byIdAny('btnMarketOnePage'),
-        btnMarketRegexTest: byIdAny('btnMarketRegexTest', 'btnRakipRegexPanel'),
-        btnMarketCopyMd: byIdAny('btnMarketCopyMd', 'btnRakipCopyMd'),
-        marketPlatformSelect: byIdAny('marketPlatformSelect', 'selPlatform'),
-        marketMaxPages: byIdAny('marketMaxPages', 'inpRakipPageCount'),
 
         progressLabel: byId('progressLabel'),
         jobLabel: byId('jobLabel'),
@@ -1745,70 +1734,6 @@ function bindEvents() {
       UI.toast('İpucu: Sekme seç, ana butonlarla işlemi başlat.');
       UI.log('Bilgi', 'Yardım gösterildi.');
     }), 'help');
-
-    // Sipariş: Tarama + Senkron
-    bindClickAny(['btnScanHesap', 'btnSiparisStart'], 'scan-hesap', () => safeTry('Hesap tarama', async () => {
-      const maxPages = askScanNumber('Kaç sayfa taransın?', 3, 1, 50);
-      if (maxPages == null) return;
-      const lookbackDays = askScanNumber('Kaç güne bakılsın?', 5, 1, 365);
-      if (lookbackDays == null) return;
-      const nid = askScanNumber('NID hız parametresi girin', 0, -100, 500);
-      if (nid == null) return;
-
-      const today = new Date();
-      const rangeEnd = new Date(today.getTime() - ((lookbackDays - 1) * 86400000));
-      UI.log('Bilgi', `Bugün: ${formatTrDate(today)} • Aralık: ${formatTrDate(today)} - ${formatTrDate(rangeEnd)}`);
-      UI.log('Bilgi', `Hesap taraması başlatılıyor... (sayfa=${maxPages}, gün=${lookbackDays}, nid=${nid})`);
-      await sendBg({ type: 'ui_start_scan_hesap', options: { maxPages, lookbackDays, nid } });
-      UI.toast('Hesap taraması başlatıldı.');
-    }));
-
-    bindClickAny(['btnScanSmm', 'btnSmmStart'], 'scan-smm', () => safeTry('SMM tarama', async () => {
-      UI.log('Bilgi', 'SMM panel taraması başlatılıyor...');
-      await sendBg({ type: 'ui_start_scan_smm' });
-      UI.toast('SMM taraması başlatıldı.');
-    }));
-
-    bindClickAny(['btnDryRun'], 'scan-dryrun', () => safeTry('Önizleme', async () => {
-      UI.log('Bilgi', 'Önizleme (dry-run) başlatılıyor...');
-      await sendBg({ type: 'ui_start_scan_hesap', options: { dryRun: true } });
-      UI.toast('Önizleme başlatıldı (gönderme yok).');
-    }));
-
-    bindClickAny(['btnSyncNow'], 'sync-now', () => safeTry('Senkron', async () => {
-      UI.log('Bilgi', 'Senkron başlatılıyor...');
-      await sendBg({ type: 'ui_sync_now' });
-      UI.toast('Senkron başlatıldı.');
-    }));
-
-    function getMarketPlatform() {
-      return (UI.els.marketPlatformSelect?.value || 'instagram').trim().toLowerCase();
-    }
-
-    function getMarketMaxPages() {
-      const n = Number(UI.els.marketMaxPages?.value || 3);
-      return Math.max(1, Math.min(50, n));
-    }
-
-    bindClickAny(['btnMarketStart', 'btnRakipStart'], 'market-start', () => safeTry('Rakip tarama', async () => {
-      const platform = getMarketPlatform();
-      const maxPages = getMarketMaxPages();
-      UI.log('Bilgi', `Rakip taraması başlatılıyor: ${platform}`);
-      await sendBg({ type: 'ui_market_start', platform, maxPages });
-      UI.toast(`Rakip taraması başladı: ${platform}`);
-    }));
-
-    if (UI.els.btnMarketOnePage) bindOnce(UI.els.btnMarketOnePage, 'click', () => safeTry('Tek sayfa', async () => {
-      const platform = getMarketPlatform();
-      UI.log('Bilgi', `Tek sayfa tarama: ${platform}`);
-      await sendBg({ type: 'ui_market_start', platform, maxPages: 1 });
-      UI.toast(`Tek sayfa tarama başladı: ${platform}`);
-    }), 'market-onepage');
-
-    if (UI.els.btnMarketRegexTest) UI.els.btnMarketRegexTest.addEventListener('click', () => safeTry('Regex test', () => {
-      UI.toast('Regex test bu sürümde sadece taslak (henüz bağlı değil).');
-      UI.log('Uyarı', 'Satıcı Regex Test: henüz bağlanmadı.');
-    }));
 
     bindOnce(UI.els.btnSystemRefreshNow, 'click', () => safeTry('Sistem yenile', () => refreshSystemStatus(false)), 'sys-refresh');
     bindOnce(UI.els.btnSystemValidateIntegrations, 'click', () => safeTry('Entegrasyon doğrula', () => refreshSystemStatus(false)), 'sys-validate');
@@ -3249,26 +3174,9 @@ function bindEvents() {
 
     onProgress?.({ step: 'Normalize ediliyor', pct: 80 });
     const rows = rawRows.map((r) => {
-      const smmId = pickIdFromRow(r);
-      const fullText = Object.values(r).map((v) => String(v || '')).join(' | ');
-      const dt = (fullText.match(DATE_TIME_REGEX) || [])[0] || '';
-      if (!dt) return null;
-      const dayMonth = dt.slice(0, 5);
-      if (!targetDays.has(dayMonth)) return null;
-
-      const orderNo = pickByKeys(r, ['sipariş', 'siparis', 'order', 'no']);
-      const status = pickByKeys(r, ['durum', 'status']);
-      const amount = pickByKeys(r, ['tutar', 'fiyat', 'ücret', 'ucret', 'amount', 'total']);
-      const complaintFlag = /şikayet|sikayet|problem|itiraz|complaint/i.test(fullText) || /problem|şikayet|sikayet/i.test(status);
-
+      const rowId = pickIdFromRow(r);
       return {
-        smmId: smmId || `row_${hash32(JSON.stringify(r))}`,
-        page,
-        siparisNo: orderNo,
-        tarihSaat: dt,
-        durum: status,
-        tutar: amount,
-        sikayetBulgu: complaintFlag ? 'VAR' : 'YOK',
+        rowId: rowId || `row_${hash32(JSON.stringify(r))}`,
         source: mode,
         url: location.href,
         ...r
